@@ -37,7 +37,7 @@ def get_cities(df, lat_col='latitude', lon_col='longitude'):
 
 
 
-def feature_engineering(data):
+def feature_engineering_info(data):
 
     data.drop('Unnamed: 0', axis=1, inplace=True)
 
@@ -51,6 +51,7 @@ def feature_engineering(data):
     data['morning_shopper'] = data['typical_hour'].between(6, 11).astype(int)
     data['afternoon_shopper'] = data['typical_hour'].between(12, 17).astype(int)
     data['evening_shopper'] = data['typical_hour'].between(18, 23).astype(int)
+    # data.drop('typical_hour', axis=1, inplace=True)  >>> Not dropping the original column for now, but i think we should <<<
 
     # Add city column
     data['city'] = get_cities(data)
@@ -73,5 +74,27 @@ def feature_engineering(data):
 
     # Add total childern column
     # data['total_children'] = data['kids_home'] + data['teens_home']   >>> Not sure if this is a good variable <<<
+
+
+
+def feature_engineering_basket(data):
+
+    # Remove brackets and quotes from string of goods
+    data['list_of_goods'] = data['list_of_goods'].apply(lambda x: x.replace('[', '').replace(']', '').replace('\'', ''))
+
+    # Change list of goods to be a list
+    data['list_of_goods'] = data['list_of_goods'].apply(lambda x: x.split(', '))
+
+    # Add column for number of items in the basket
+    data['n_items'] = data['list_of_goods'].apply(lambda x: len(x))
+
+
+
+def all_purchased_items(basket_df):
+    return basket_df.groupby('customer_id').apply(
+        lambda group: pd.Series({
+            'all_purchased_items': [item for sublist in group['list_of_goods'] for item in sublist]
+        })
+    ).reset_index()
 
     
