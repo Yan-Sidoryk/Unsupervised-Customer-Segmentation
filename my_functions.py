@@ -73,9 +73,7 @@ def feature_engineering_info(data):
     data.drop('loyalty_card_number', axis=1, inplace=True)
 
     # Add total childern column
-    # data['total_children'] = data['kids_home'] + data['teens_home']   >>> Not sure if this is a good variable <<<
-
-
+    data['total_children'] = data['kids_home'] + data['teens_home']   # >>> I think we should drop the original columns, but not doing it for now <<<
 
 def feature_engineering_basket(data):
 
