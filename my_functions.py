@@ -66,6 +66,9 @@ def feature_engineering_info(data):
     for col in spend_columns:     
         data[f'spend_{"_".join(col.split("_")[2:])}_percent'] = (data[col] / data['total_lifetime_spend']) * 100
 
+    # Add column for education level 
+    data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
+
     # >>> I think we should drop the original spend columns, but not doing it for now <<<
 
     # Replace loyalty card number with binary column
