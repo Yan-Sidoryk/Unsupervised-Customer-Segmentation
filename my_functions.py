@@ -51,7 +51,7 @@ def feature_engineering_info(data):
     data['morning_shopper'] = data['typical_hour'].between(6, 11).astype(int)
     data['afternoon_shopper'] = data['typical_hour'].between(12, 17).astype(int)
     data['evening_shopper'] = data['typical_hour'].between(18, 23).astype(int)
-    # data.drop('typical_hour', axis=1, inplace=True)  >>> Not dropping the original column for now, but i think we should <<<
+    # data.drop('typical_hour', axis=1, inplace=True)  >>> Not dropping the original column for now, might need for visualization <<<
 
     # Add city column
     data['city'] = get_cities(data)
