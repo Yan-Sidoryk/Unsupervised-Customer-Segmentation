@@ -18,6 +18,8 @@ from sklearn.cluster import KMeans, DBSCAN, MeanShift
 import scipy.cluster.hierarchy as sch
 from minisom import MiniSom
 
+
+
 # ---------- Feature Engineering Functions ---------- #
 
 # Transform latitude and longitude into city names
@@ -155,7 +157,8 @@ def imputation_scaling(info_df):
                     'distinct_stores_visited',
                     'total_children', 
                     'age',
-                    'year_first_transaction']
+                    'year_first_transaction',
+                    'typical_hour']
 
     info_col_categorical = [ 
                     'customer_gender', 
@@ -278,7 +281,7 @@ def dimensionality_reduction(info_df_scaled):
     #        'spend_videogames_percent', 'spend_petfood_percent'], inplace=True)
 
     # Useless columns
-    info_df_scaled.drop(columns=['customer_name', 'typical_hour', 'latitude', 'longitude'], inplace=True)
+    info_df_scaled.drop(columns=['customer_name', 'latitude', 'longitude'], inplace=True)
 
     # Redundant columns
     info_df_scaled.drop(columns=['lifetime_spend_groceries',
@@ -287,8 +290,6 @@ def dimensionality_reduction(info_df_scaled):
         'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
         'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
-    info_df_scaled.drop(columns=['kids_home', 'teens_home'], inplace=True)
-
 
     # Irrelevant columns
     info_df_scaled.drop(columns=['city_Almada', 'city_Amadora', 'city_Bobadela',
@@ -296,8 +297,14 @@ def dimensionality_reduction(info_df_scaled):
         'city_Moscavide', 'city_Odivelas', 'city_Olival do Basto',
         'city_Pontinha', 'city_Pragal', 'city_Sacavem'], inplace=True)
 
-    info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 'customer_gender_male', 
+    info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
         'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
+
+    
+    # TESTING
+
+    # info_df_scaled.drop(columns=['kids_home', 'teens_home'], inplace=True) , 'typical_hour'   'customer_gender_male', 
+    info_df_scaled.drop(columns=['total_children', 'typical_hour', 'year_first_transaction', 'customer_gender_male'], inplace=True)
 
 
 
