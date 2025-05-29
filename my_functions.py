@@ -211,11 +211,12 @@ def imputation_scaling(info_df):
 
 def k_distance_graph(info_df_scaled, k):
 
-    X = info_df_scaled[['total_lifetime_spend', 'lifetime_spend_groceries',
-       'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-       'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-       'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-       'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']].values  # Adjust specific columns
+    X = info_df_scaled
+    # [['total_lifetime_spend', 'lifetime_spend_groceries',
+    #    'lifetime_spend_electronics', 'lifetime_spend_vegetables',
+    #    'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
+    #    'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
+    #    'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']].values  # Adjust specific columns
 
     # Compute the nearest neighbors
     nbrs = NearestNeighbors(n_neighbors=k).fit(X)
@@ -255,11 +256,13 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     info_df_clustered['DBScan'] = DBSCAN(
         eps=eps, 
         min_samples=min_samples
-        ).fit_predict(info_df_scaled[['spend_groceries_percent',
-           'spend_electronics_percent', 'spend_vegetables_percent',
-           'spend_nonalcohol_drinks_percent', 'spend_alcohol_drinks_percent',
-           'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
-           'spend_videogames_percent', 'spend_petfood_percent', 'total_children']])
+        ).fit_predict(info_df_scaled)
+        
+        # [['spend_groceries_percent',
+        #    'spend_electronics_percent', 'spend_vegetables_percent',
+        #    'spend_nonalcohol_drinks_percent', 'spend_alcohol_drinks_percent',
+        #    'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
+        #    'spend_videogames_percent', 'spend_petfood_percent', 'total_children']])
 
 
     # Plot the number of customers in each cluster
