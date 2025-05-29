@@ -243,14 +243,24 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     info_df_clustered = info_df_scaled.copy()
 
     # Implementing the DBSCAN algorithm
+    # info_df_clustered['DBScan'] = DBSCAN(
+    #     eps=eps, 
+    #     min_samples=min_samples
+    #     ).fit_predict(info_df_scaled[['total_lifetime_spend', 'lifetime_spend_groceries',
+    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
+    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
+    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
+    #     'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']])
+
     info_df_clustered['DBScan'] = DBSCAN(
         eps=eps, 
         min_samples=min_samples
-        ).fit_predict(info_df_scaled[['total_lifetime_spend', 'lifetime_spend_groceries',
-        'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-        'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-        'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-        'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']])
+        ).fit_predict(info_df_scaled[['spend_groceries_percent',
+           'spend_electronics_percent', 'spend_vegetables_percent',
+           'spend_nonalcohol_drinks_percent', 'spend_alcohol_drinks_percent',
+           'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
+           'spend_videogames_percent', 'spend_petfood_percent', 'total_children']])
+
 
     # Plot the number of customers in each cluster
     info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
@@ -304,7 +314,10 @@ def dimensionality_reduction(info_df_scaled):
     # TESTING
 
     # info_df_scaled.drop(columns=['kids_home', 'teens_home'], inplace=True) , 'typical_hour'   'customer_gender_male', 
-    info_df_scaled.drop(columns=['total_children', 'typical_hour', 'year_first_transaction', 'customer_gender_male'], inplace=True)
+    # info_df_scaled.drop(columns=['kids_home', 'teens_home',  'typical_hour', 'year_first_transaction', 'customer_gender_male'], inplace=True) #'total_children',
+    info_df_scaled.drop(columns=['customer_gender_male'], inplace=True)
+    # info_df_scaled.drop(columns=['number_complaints', 'distinct_stores_visited', 'lifetime_total_distinct_products', 
+                    # 'percentage_of_products_bought_promotion', 'age', 'loyalty_card', 'degree_level_None'], inplace=True)
 
 
 
@@ -357,19 +370,21 @@ def elbow_and_silhouette(info_df_scaled, max_k=21):
 
 
 
-def kmeans_clustering(info_df_scaled, k):
+def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
     # Fit KMeans with your chosen number of clusters 
     kmeans = KMeans(n_clusters=k, random_state=42)
-    clusters = kmeans.fit_predict(info_df_scaled.drop(columns=['customer_id']))
+    clusters = kmeans.fit_predict(info_df_pca.drop(columns=['customer_id']))
 
     # Create a new DataFrame to hold the scaled data and cluster labels
     info_df_clustered = info_df_scaled.copy()
     info_df_clustered['cluster'] = clusters
 
+
     # Create a DataFrame to hold the cluster profiles for each cluster
     # This will give you the mean values of each feature for each cluster
     cluster_profiles = info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
+
 
     return info_df_clustered, cluster_profiles
 
