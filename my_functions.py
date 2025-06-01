@@ -23,38 +23,6 @@ from minisom import MiniSom
 
 # ---------- Feature Engineering Functions ---------- #
 
-# Transform latitude and longitude into city names
-def get_cities(df, lat_col='latitude', lon_col='longitude'):
-
-    # Create a copy to avoid modifying the original
-    result_df = df.copy()
-    
-    # Filter rows with valid coordinates
-    valid_mask = (~df[lat_col].isna()) & (~df[lon_col].isna())
-    valid_coords = df[valid_mask]
-    
-    if len(valid_coords) == 0:
-        result_df['city'] = np.nan
-        return result_df
-    
-    # Convert coordinates to list of tuples (required by reverse_geocoder)
-    coord_tuples = [(row[lat_col], row[lon_col]) for _, row in valid_coords.iterrows()]
-    
-    # Batch geocode all coordinates at once
-    results = rg.search(coord_tuples)
-    
-    # Create a city column filled with NaN
-    result_df['city'] = np.nan
-    
-    # Populate city for valid coordinates
-    for i, idx in enumerate(valid_coords.index):
-        # Extract city name from results
-        result_df.at[idx, 'city'] = results[i]['name']
-           
-    return result_df['city']
-
-
-
 def feature_engineering_info(data):
 
     data.drop('Unnamed: 0', axis=1, inplace=True)
@@ -70,11 +38,6 @@ def feature_engineering_info(data):
     data['afternoon_shopper'] = data['typical_hour'].between(12, 17).astype(int)
     data['evening_shopper'] = data['typical_hour'].between(18, 23).astype(int)
     # data.drop('typical_hour', axis=1, inplace=True)  >>> Not dropping the original column for now, might need for visualization <<<
-
-    # Add city column
-    data['city'] = get_cities(data)
-    # Drop coordinates columns
-    # data.drop(['latitude', 'longitude'], axis=1, inplace=True)    >>> Not dropping the original column for now, might need for visualization <<<
 
     # Add total lifetime spend column
     spend_columns = [col for col in data.columns if 'lifetime_spend_' in col]
@@ -167,16 +130,9 @@ def imputation_scaling(info_df, k=5):
 
 def k_distance_graph(info_df_scaled, k):
 
-    X = info_df_scaled
-    # [['total_lifetime_spend', 'lifetime_spend_groceries',
-    #    'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-    #    'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-    #    'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-    #    'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']].values  # Adjust specific columns
-
     # Compute the nearest neighbors
-    nbrs = NearestNeighbors(n_neighbors=k).fit(X)
-    distances, indices = nbrs.kneighbors(X)
+    nbrs = NearestNeighbors(n_neighbors=k).fit(info_df_scaled)
+    distances, indices = nbrs.kneighbors(info_df_scaled)
 
     # Sort the distances in ascending order
     distances = np.sort(distances[:, k-1])  # Get the distance to the kth nearest neighbor
@@ -202,7 +158,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     info_df_clustered['DBScan'] = DBSCAN(
         eps=eps, 
         min_samples=min_samples
-        ).fit_predict(info_df_scaled)
+        ).fit_predict(info_df_scaled.drop(columns=['customer_id'], axis=1))
         
 
     # Plot the number of customers in each cluster
@@ -220,7 +176,6 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     outliers_df = info_df_clustered[info_df_clustered['DBScan'] == -1]
 
     return info_df_scaled, outliers_df
-
 
 
 def dimensionality_reduction(info_df_scaled):
@@ -243,11 +198,6 @@ x
         'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
 
-    # Irrelevant columns
-    info_df_scaled.drop(columns=['city_Almada', 'city_Amadora', 'city_Bobadela',
-        'city_Cacilhas', 'city_Camarate', 'city_Famoes', 'city_Lisbon',
-        'city_Moscavide', 'city_Odivelas', 'city_Olival do Basto',
-        'city_Pontinha', 'city_Pragal', 'city_Sacavem', 'city_Alges'], inplace=True)
 
     # info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
     #     'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
