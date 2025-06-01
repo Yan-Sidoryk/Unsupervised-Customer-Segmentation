@@ -74,7 +74,7 @@ def feature_engineering_info(data):
     # Add city column
     data['city'] = get_cities(data)
     # Drop coordinates columns
-    # data.drop(['latitude', 'longitude'], axis=1, inplace=True)    >>>Drop them later, now kulled for visualization<<<
+    # data.drop(['latitude', 'longitude'], axis=1, inplace=True)    >>> Not dropping the original column for now, might need for visualization <<<
 
     # Add total lifetime spend column
     spend_columns = [col for col in data.columns if 'lifetime_spend_' in col]
@@ -94,7 +94,7 @@ def feature_engineering_info(data):
     data.drop('loyalty_card_number', axis=1, inplace=True)
 
     # Add total childern column
-    data['total_children'] = data['kids_home'] + data['teens_home']   # >>> I think we should drop the original columns, but not doing it for now <<<
+    data['total_children'] = data['kids_home'] + data['teens_home']   
 
 def feature_engineering_basket(data):
 
@@ -199,27 +199,11 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     # Create a temporary DataFrame to store cluster labels 
     info_df_clustered = info_df_scaled.copy()
 
-    # Implementing the DBSCAN algorithm
-    # info_df_clustered['DBScan'] = DBSCAN(
-    #     eps=eps, 
-    #     min_samples=min_samples
-    #     ).fit_predict(info_df_scaled[['total_lifetime_spend', 'lifetime_spend_groceries',
-    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-    #     'lifetime_spend_videogames', 'lifetime_spend_petfood', 'total_children']])
-
     info_df_clustered['DBScan'] = DBSCAN(
         eps=eps, 
         min_samples=min_samples
         ).fit_predict(info_df_scaled)
         
-        # [['spend_groceries_percent',
-        #    'spend_electronics_percent', 'spend_vegetables_percent',
-        #    'spend_nonalcohol_drinks_percent', 'spend_alcohol_drinks_percent',
-        #    'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
-        #    'spend_videogames_percent', 'spend_petfood_percent', 'total_children']])
-
 
     # Plot the number of customers in each cluster
     info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
@@ -229,8 +213,8 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     print(info_df_clustered.groupby(['DBScan']).size())
 
     # Even with such a high eps, we still have outliers, so we can remove them
-    info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
-    info_df_scaled.reset_index(drop=True, inplace=True)
+    # info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
+    # info_df_scaled.reset_index(drop=True, inplace=True)
 
     # Save outliers to a separate DataFrame
     outliers_df = info_df_clustered[info_df_clustered['DBScan'] == -1]
@@ -249,8 +233,7 @@ def dimensionality_reduction(info_df_scaled):
     #        'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
     #        'spend_videogames_percent', 'spend_petfood_percent'], inplace=True)
 
-    # Useless columns
-    # info_df_scaled.drop(columns=['customer_name', 'latitude', 'longitude'], inplace=True)
+x
 
     # Redundant columns
     info_df_scaled.drop(columns=['lifetime_spend_groceries',
@@ -266,17 +249,18 @@ def dimensionality_reduction(info_df_scaled):
         'city_Moscavide', 'city_Odivelas', 'city_Olival do Basto',
         'city_Pontinha', 'city_Pragal', 'city_Sacavem', 'city_Alges'], inplace=True)
 
-    info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
-        'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
+    # info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
+    #     'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
 
     
     # TESTING
 
     # info_df_scaled.drop(columns=['kids_home', 'teens_home'], inplace=True) , 'typical_hour'   'customer_gender_male', 
     # info_df_scaled.drop(columns=['kids_home', 'teens_home',  'typical_hour', 'year_first_transaction', 'customer_gender_male'], inplace=True) #'total_children',
-    info_df_scaled.drop(columns=['customer_gender_male'], inplace=True)
     # info_df_scaled.drop(columns=['number_complaints', 'distinct_stores_visited', 'lifetime_total_distinct_products', 
                     # 'percentage_of_products_bought_promotion', 'age', 'loyalty_card', 'degree_level_None'], inplace=True)
+
+    # info_df_scaled.drop(columns=['customer_gender_male'], inplace=True)
 
 
 
