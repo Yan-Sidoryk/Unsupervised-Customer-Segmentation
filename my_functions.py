@@ -98,11 +98,11 @@ def extra_preprocessing(info_df):
     info_df.drop(columns=['customer_name'], inplace=True)
 
     # Drop the columns that were only kept for visualization
-    info_df.drop(columns=['lifetime_spend_groceries',
-        'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-        'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-        'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-        'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
+    # info_df.drop(columns=['lifetime_spend_groceries',
+    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
+    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
+    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
+    #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
     return info_df
 
@@ -119,7 +119,7 @@ def imputation_scaling(info_df, k=5):
     info_df_num_imputed = pd.DataFrame(imputer.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
 
     # One-hot encode categorical columns
-    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     info_df_cat_encoded = pd.DataFrame(
         encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
         columns=encoder.get_feature_names_out(categorical_cols),
