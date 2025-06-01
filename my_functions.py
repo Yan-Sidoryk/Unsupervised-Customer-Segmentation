@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 
+from sklearn.impute import KNNImputer
 from sklearn.preprocessing import RobustScaler, OneHotEncoder
 from sklearn.metrics import silhouette_score
 from sklearn.neighbors import NearestNeighbors
@@ -118,92 +119,47 @@ def all_purchased_items(basket_df):
     
 
 # ---------- Clustering Functions ---------- #
+def extra_preprocessing(info_df):
 
-def imputation_scaling(info_df):
+    # Drop the customers from Marko
+    info_df = info_df[
+        ~(
+            (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213011) &
+            (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
+        )]
 
-    # Create a copy of the DataFrame to avoid modifying the original
-    info_df_scaled = info_df.copy()
-    
-    # Get the numeric, discrete and categorical columns
-    info_col_continuous = [
-                    'lifetime_spend_groceries',
-                    'lifetime_spend_electronics',
-                    'lifetime_spend_vegetables',
-                    'lifetime_spend_nonalcohol_drinks',
-                    'lifetime_spend_alcohol_drinks',
-                    'lifetime_spend_meat',
-                    'lifetime_spend_fish',
-                    'lifetime_spend_hygiene',
-                    'lifetime_spend_videogames',
-                    'lifetime_spend_petfood',
-                    'lifetime_total_distinct_products',
-                    'percentage_of_products_bought_promotion',
-                    'total_lifetime_spend',
-                    'spend_groceries_percent',
-                    'spend_electronics_percent',
-                    'spend_vegetables_percent',
-                    'spend_nonalcohol_drinks_percent',
-                    'spend_alcohol_drinks_percent',
-                    'spend_meat_percent',
-                    'spend_fish_percent',
-                    'spend_hygiene_percent',
-                    'spend_videogames_percent',
-                    'spend_petfood_percent']
+    # Drop the customers name
+    info_df.drop(columns=['customer_name'], inplace=True)
 
-    info_col_discrete  = [
-                    'kids_home',
-                    'teens_home',
-                    'number_complaints',
-                    'distinct_stores_visited',
-                    'total_children', 
-                    'age',
-                    'year_first_transaction',
-                    'typical_hour']
-
-    info_col_categorical = [ 
-                    'customer_gender', 
-                    'city', 
-                    'degree_level']
+    return info_df
 
 
-    # Not included 'customer_id', 'customer_name' and 'typical_hour'
-    # Also 'loyalty_card' cannot have missing values, so it is not included 
-    # We may have situations where 'morning_shopper', 'afternoon_shopper' and 'evening_shopper' are all 0 for a customer, but mb it's fine ??
-    # >>> We also have negative values in 'percentage_of_products_bought_promotion' <<< !!!
 
 
-    # Fill missing values for continuous columns with the mean and scale them
-    for col in info_col_continuous:
-        info_df_scaled[col].fillna(info_df_scaled[col].mean(), inplace=True)
+def imputation_scaling(info_df, k=5):
 
-        scaler = RobustScaler()
-        info_df_scaled[col] = scaler.fit_transform(info_df_scaled[[col]])
+    # Separate categorical and numerical columns
+    categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
+    numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
+    # KNN Imputation for numerical columns
+    imputer = KNNImputer(n_neighbors=k)
+    info_df_num_imputed = pd.DataFrame(imputer.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
 
-    # Fill missing values for discrete columns with the median and scale them
-    for col in info_col_discrete:
-        info_df_scaled[col].fillna(info_df_scaled[col].median(), inplace=True)
+    # One-hot encode categorical columns
+    encoder = OneHotEncoder(sparse=False, handle_unknown='ignore')
+    info_df_cat_encoded = pd.DataFrame(
+        encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
+        columns=encoder.get_feature_names_out(categorical_cols),
+        index=info_df.index
+    )
 
-        scaler = RobustScaler()
-        info_df_scaled[col] = scaler.fit_transform(info_df_scaled[[col]])
+    # Scale numerical columns with RobustScaler
+    scaler = RobustScaler()
+    info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df_num_imputed), columns=numerical_cols, index=info_df.index)
 
-
-    # Fill missing values for categorical columns with mode
-    for col in info_col_categorical:
-        info_df_scaled[col].fillna(info_df_scaled[col].mode()[0], inplace=True)
-
-
-    # One-hot encode the categorical columns
-    encoder = OneHotEncoder(sparse_output=False, drop='first')
-    encoded_data = encoder.fit_transform(info_df_scaled[info_col_categorical])
-
-    # Create DataFrame with encoded column names
-    feature_names = encoder.get_feature_names_out(info_col_categorical)
-    encoded_df = pd.DataFrame(encoded_data, columns=feature_names, index=info_df_scaled.index)
-
-    # Remove original categorical columns and add encoded ones
-    info_df_scaled.drop(columns=info_col_categorical, inplace=True)
-    info_df_scaled = pd.concat([info_df_scaled, encoded_df], axis=1) 
+    # Combine all features
+    info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
 
     return info_df_scaled
 
@@ -294,7 +250,7 @@ def dimensionality_reduction(info_df_scaled):
     #        'spend_videogames_percent', 'spend_petfood_percent'], inplace=True)
 
     # Useless columns
-    info_df_scaled.drop(columns=['customer_name', 'latitude', 'longitude'], inplace=True)
+    # info_df_scaled.drop(columns=['customer_name', 'latitude', 'longitude'], inplace=True)
 
     # Redundant columns
     info_df_scaled.drop(columns=['lifetime_spend_groceries',
@@ -308,7 +264,7 @@ def dimensionality_reduction(info_df_scaled):
     info_df_scaled.drop(columns=['city_Almada', 'city_Amadora', 'city_Bobadela',
         'city_Cacilhas', 'city_Camarate', 'city_Famoes', 'city_Lisbon',
         'city_Moscavide', 'city_Odivelas', 'city_Olival do Basto',
-        'city_Pontinha', 'city_Pragal', 'city_Sacavem'], inplace=True)
+        'city_Pontinha', 'city_Pragal', 'city_Sacavem', 'city_Alges'], inplace=True)
 
     info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
         'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
