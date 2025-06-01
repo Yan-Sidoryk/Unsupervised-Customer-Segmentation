@@ -17,6 +17,7 @@ from sklearn.neighbors import NearestNeighbors
 
 from sklearn.cluster import KMeans, DBSCAN, MeanShift
 import scipy.cluster.hierarchy as sch
+from sklearn.decomposition import PCA
 from minisom import MiniSom
 
 
@@ -46,11 +47,10 @@ def feature_engineering_info(data):
     # Add columns for percentage of total spend
     for col in spend_columns:     
         data[f'spend_{"_".join(col.split("_")[2:])}_percent'] = (data[col] / data['total_lifetime_spend']) * 100
+     # >>> Keeping the original spend columns for the visualization <<<
 
     # Add column for education level 
     data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
-
-    # >>> I think we should drop the original spend columns, but not doing it for now <<<
 
     # Replace loyalty card number with binary column
     data['loyalty_card'] = data['loyalty_card_number'].notna().astype(int)
@@ -58,6 +58,8 @@ def feature_engineering_info(data):
 
     # Add total childern column
     data['total_children'] = data['kids_home'] + data['teens_home']   
+
+
 
 def feature_engineering_basket(data):
 
@@ -82,6 +84,7 @@ def all_purchased_items(basket_df):
     
 
 # ---------- Clustering Functions ---------- #
+
 def extra_preprocessing(info_df):
 
     # Drop the customers from Marko
@@ -94,8 +97,14 @@ def extra_preprocessing(info_df):
     # Drop the customers name
     info_df.drop(columns=['customer_name'], inplace=True)
 
-    return info_df
+    # Drop the columns that were only kept for visualization
+    # info_df.drop(columns=['lifetime_spend_groceries',
+    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
+    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
+    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
+    #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
+    return info_df
 
 
 
@@ -165,59 +174,42 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
     plt.show()
 
-    # And print for better readability
-    print(info_df_clustered.groupby(['DBScan']).size())
-
-    # Even with such a high eps, we still have outliers, so we can remove them
-    # info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
-    # info_df_scaled.reset_index(drop=True, inplace=True)
+    # Remove outliers, if there are any
+    info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
+    info_df_scaled.reset_index(drop=True, inplace=True)
 
     # Save outliers to a separate DataFrame
     outliers_df = info_df_clustered[info_df_clustered['DBScan'] == -1]
 
+    print(f"Number of outliers removed: {len(outliers_df)}")
+
     return info_df_scaled, outliers_df
 
 
-def dimensionality_reduction(info_df_scaled):
 
-    # Reducing the dimensionality of the data to the most important features
+def dimensionality_reduction(info_df_scaled, n_comp):
 
-    # info_df_scaled.drop(columns=['spend_groceries_percent',
-    #        'spend_electronics_percent', 'spend_vegetables_percent',
-    #        'spend_nonalcohol_drinks_percent', 'spend_alcohol_drinks_percent',
-    #        'spend_meat_percent', 'spend_fish_percent', 'spend_hygiene_percent',
-    #        'spend_videogames_percent', 'spend_petfood_percent'], inplace=True)
-
-x
-
-    # Redundant columns
-    info_df_scaled.drop(columns=['lifetime_spend_groceries',
-        'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-        'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-        'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-        'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
+    # Apply PCA for dimensionality reduction
+    info_df_pca = info_df_scaled[['customer_id']].copy()
+    n_comp = n_comp
+    pca = PCA(n_components=n_comp, random_state=42)
+    pca_result = pca.fit_transform(info_df_scaled.drop(columns=['customer_id'], axis=1))
+    for i in range(n_comp):
+        info_df_pca[f'pca{i+1}'] = pca_result[:, i]
 
 
+    explained_variance = pca.explained_variance_ratio_
+    print(f"Variance explained by each component: {explained_variance}")
+    print(f"Total variance explained by {n_comp} components: {sum(explained_variance):.2%}")
 
-    # info_df_scaled.drop(columns=['degree_level_Msc', 'degree_level_Phd', 
-    #     'morning_shopper', 'evening_shopper', 'afternoon_shopper'], inplace=True)            
-
-    
-    # TESTING
-
-    # info_df_scaled.drop(columns=['kids_home', 'teens_home'], inplace=True) , 'typical_hour'   'customer_gender_male', 
-    # info_df_scaled.drop(columns=['kids_home', 'teens_home',  'typical_hour', 'year_first_transaction', 'customer_gender_male'], inplace=True) #'total_children',
-    # info_df_scaled.drop(columns=['number_complaints', 'distinct_stores_visited', 'lifetime_total_distinct_products', 
-                    # 'percentage_of_products_bought_promotion', 'age', 'loyalty_card', 'degree_level_None'], inplace=True)
-
-    # info_df_scaled.drop(columns=['customer_gender_male'], inplace=True)
+    return info_df_pca
 
 
 
-def elbow_and_silhouette(info_df_scaled, max_k=21):
+def elbow_and_silhouette(info_df_scaled, max_k, step=1):
 
     # Setup for tracking both metrics
-    k_range = range(2, max_k)  # Silhouette score requires at least 2 clusters
+    k_range = range(2, max_k+1, step)  # Silhouette score requires at least 2 clusters
     inertia_values = []
     silhouette_scores = []
 
@@ -234,7 +226,6 @@ def elbow_and_silhouette(info_df_scaled, max_k=21):
         silhouette_avg = silhouette_score(info_df_scaled.drop(columns=['customer_id']), cluster_labels)
         silhouette_scores.append(silhouette_avg)
         
-
     # Create a figure with two subplots
     fig, ax1 = plt.subplots(figsize=(16, 6))
 
@@ -273,11 +264,9 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
     info_df_clustered = info_df_scaled.copy()
     info_df_clustered['cluster'] = clusters
 
-
     # Create a DataFrame to hold the cluster profiles for each cluster
     # This will give you the mean values of each feature for each cluster
     cluster_profiles = info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
-
 
     return info_df_clustered, cluster_profiles
 
@@ -310,7 +299,6 @@ def generate_cluster_names(cluster_profiles, z_threshold, max_features=4):
         labels[i] = f"{high_label} | {low_label}"
     
     return labels
-
 
 
 
