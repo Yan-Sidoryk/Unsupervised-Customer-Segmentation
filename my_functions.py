@@ -113,7 +113,10 @@ def all_purchased_items(basket_df):
 
 # ---------- Clustering Functions ---------- #
 
-def extra_preprocessing(info_df, k=5):
+def extra_preprocessing(data, k=5):
+
+    # Copy the original DataFrame to preserve the original data
+    info_df = data.copy()
 
     # Drop the customers name
     info_df.drop(columns=['customer_name'], inplace=True)
@@ -317,9 +320,8 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
 def generate_cluster_profiles(info_df_clustered):
     # Create a DataFrame to hold the cluster profiles for each cluster
     # This will give you the mean values of each feature for each cluster
-    cluster_profiles = info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
+    return info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
 
-    return cluster_profiles
 
 
 
