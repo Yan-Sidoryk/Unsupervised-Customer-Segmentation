@@ -98,6 +98,8 @@ def feature_engineering_basket(data):
     # Add column for number of items in the basket
     data['n_items'] = data['list_of_goods'].apply(lambda x: len(x))
 
+    return data
+
 
 
 def all_purchased_items(basket_df):
@@ -124,6 +126,7 @@ def extra_preprocessing(info_df):
     info_df.drop(columns=['customer_name'], inplace=True)
 
     # Drop the columns that were only kept for visualization
+    info_df.drop(columns=['latitude', 'longitude'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
