@@ -140,10 +140,6 @@ def imputation_scaling(info_df, k=5):
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
     numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
-    # KNN Imputation for numerical columns
-    imputer = KNNImputer(n_neighbors=k)
-    info_df_num_imputed = pd.DataFrame(imputer.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
-
     # One-hot encode categorical columns
     encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
     info_df_cat_encoded = pd.DataFrame(
@@ -154,13 +150,13 @@ def imputation_scaling(info_df, k=5):
 
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
-    info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df_num_imputed), columns=numerical_cols, index=info_df.index)
+    info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
 
     # Combine all features
     info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
 
     return info_df_scaled
-
+    
 
 
 def k_distance_graph(info_df_scaled, k):
@@ -213,11 +209,32 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 
 
 
+def pca_graph(info_df_scaled):
+
+    # Plot explained variance ratio for different numbers of PCA components 
+    explained_variances = []
+    n_components_range = range(1, info_df_scaled.shape[1])  # Up to max features
+
+    for n in n_components_range:
+        pca_tmp = PCA(n_components=n)
+        pca_tmp.fit(info_df_scaled.drop(columns=['customer_id'], axis=1))  # Exclude customer_id from PCA
+        explained_variances.append(pca_tmp.explained_variance_ratio_.sum() * 100)  # Convert to percent
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(n_components_range, explained_variances, marker='o')
+    plt.xlabel('Number of PCA Components')
+    plt.ylabel('Cumulative Explained Variance (%)')
+    plt.title('PCA: Explained Variance vs Number of Components')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+
 def dimensionality_reduction(info_df_scaled, n_comp):
 
     # Apply PCA for dimensionality reduction
     info_df_pca = info_df_scaled[['customer_id']].copy()
-    n_comp = n_comp
     pca = PCA(n_components=n_comp, random_state=42)
     pca_result = pca.fit_transform(info_df_scaled.drop(columns=['customer_id'], axis=1))
     for i in range(n_comp):
