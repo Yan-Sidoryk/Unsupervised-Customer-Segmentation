@@ -134,14 +134,14 @@ def extra_preprocessing(info_df):
 
 
 
-def imputation_scaling(info_df, k=5):
+def encoding_scaling(info_df, k=5):
 
     # Separate categorical and numerical columns
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
     numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
     # One-hot encode categorical columns
-    encoder = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
+    encoder = OneHotEncoder(drop='first', sparse_output=False)
     info_df_cat_encoded = pd.DataFrame(
         encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
         columns=encoder.get_feature_names_out(categorical_cols),
