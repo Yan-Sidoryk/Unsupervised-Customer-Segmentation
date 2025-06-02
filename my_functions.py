@@ -41,8 +41,8 @@ def feature_engineering_info(data, k=5):
     # Drop origional birthdate column
     data.drop('customer_birthdate', axis=1, inplace=True)
 
-    # Impute missing values 
 
+    # Impute missing values before more feature engineering
     # Separate categorical and numerical columns
     categorical_cols = data.select_dtypes(include=['object']).columns.tolist()
     numerical_cols = data.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
@@ -51,9 +51,8 @@ def feature_engineering_info(data, k=5):
     imputer = KNNImputer(n_neighbors=k)
     data_imputed = pd.DataFrame(imputer.fit_transform(data[numerical_cols]), columns=numerical_cols, index=data.index)
 
-    # Combine all features
+    # Build back a dataframe with the imputed numerical columns and original categorical columns
     data = pd.concat([data[['customer_id']], data_imputed, data[categorical_cols]], axis=1)
-
 
 
     # Add shopping time patterns 
@@ -74,14 +73,15 @@ def feature_engineering_info(data, k=5):
     # Add column for education level 
     data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
 
-    
-
     # Add total childern column
     data['total_children'] = data['kids_home'] + data['teens_home']   
 
     # Add customer_for column
     data['customer_for'] = dt.datetime.now().year - data['year_first_transaction']
     data.drop('year_first_transaction', axis=1, inplace=True)
+
+    # Remove the negative values from percentage of products bought on promotion (probably a typing error)
+    data['percentage_of_products_bought_promotion'] = data['percentage_of_products_bought_promotion'].abs()
 
     return data
 
