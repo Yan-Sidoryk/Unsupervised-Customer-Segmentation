@@ -26,15 +26,35 @@ from collections import Counter, defaultdict
 
 # ---------- Feature Engineering Functions ---------- #
 
-def feature_engineering_info(data):
+def feature_engineering_info(data, k=5):
 
+    # Drop the index column 
     data.drop('Unnamed: 0', axis=1, inplace=True)
+
+    # Replace loyalty card number with binary column
+    data['loyalty_card'] = data['loyalty_card_number'].notna().astype(int)
+    data.drop('loyalty_card_number', axis=1, inplace=True)
 
     # Get ages of customers from birthdate
     data['customer_birthdate'] = pd.to_datetime(data['customer_birthdate'])
     data['age'] = dt.datetime.now().year - data['customer_birthdate'].dt.year
     # Drop origional birthdate column
     data.drop('customer_birthdate', axis=1, inplace=True)
+
+    # Impute missing values 
+
+    # Separate categorical and numerical columns
+    categorical_cols = data.select_dtypes(include=['object']).columns.tolist()
+    numerical_cols = data.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
+
+    # KNN Imputation for numerical columns
+    imputer = KNNImputer(n_neighbors=k)
+    data_imputed = pd.DataFrame(imputer.fit_transform(data[numerical_cols]), columns=numerical_cols, index=data.index)
+
+    # Combine all features
+    data = pd.concat([data[['customer_id']], data_imputed, data[categorical_cols]], axis=1)
+
+
 
     # Add shopping time patterns 
     data['morning_shopper'] = data['typical_hour'].between(6, 11).astype(int)
@@ -54,9 +74,7 @@ def feature_engineering_info(data):
     # Add column for education level 
     data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
 
-    # Replace loyalty card number with binary column
-    data['loyalty_card'] = data['loyalty_card_number'].notna().astype(int)
-    data.drop('loyalty_card_number', axis=1, inplace=True)
+    
 
     # Add total childern column
     data['total_children'] = data['kids_home'] + data['teens_home']   
@@ -64,6 +82,8 @@ def feature_engineering_info(data):
     # Add customer_for column
     data['customer_for'] = dt.datetime.now().year - data['year_first_transaction']
     data.drop('year_first_transaction', axis=1, inplace=True)
+
+    return data
 
 
 
