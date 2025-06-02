@@ -113,43 +113,43 @@ def all_purchased_items(basket_df):
 
 # ---------- Clustering Functions ---------- #
 
-def extra_preprocessing(info_df):
-
-    # Drop the customers from Marko
-    info_df = info_df[
-        ~(
-            (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213011) &
-            (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
-        )]
+def extra_preprocessing(info_df, k=5):
 
     # Drop the customers name
     info_df.drop(columns=['customer_name'], inplace=True)
 
     # Drop the columns that were only kept for visualization
-    info_df.drop(columns=['latitude', 'longitude'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
     #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
     #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
-    return info_df
 
-
-
-def encoding_scaling(info_df, k=5):
-
-    # Separate categorical and numerical columns
+    # Separate categorical columns
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
-    numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
+    
 
     # One-hot encode categorical columns
-    encoder = OneHotEncoder(drop='first', sparse_output=False)
+    encoder = OneHotEncoder( sparse_output=False)   #drop='first',
     info_df_cat_encoded = pd.DataFrame(
         encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
         columns=encoder.get_feature_names_out(categorical_cols),
         index=info_df.index
     )
+
+    # Get the Marko clients
+    marko_clients_id_list = info_df[
+        (
+            (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213011) &
+            (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
+        )]['customer_id'].tolist()
+
+    # Drop latitude and longitude here
+    info_df.drop(columns=['latitude', 'longitude'], inplace=True)
+
+    # Separate numerical columns after dropping latitude and longitude
+    numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
@@ -158,8 +158,7 @@ def encoding_scaling(info_df, k=5):
     # Combine all features
     info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
 
-    return info_df_scaled
-    
+    return info_df_scaled[~info_df_scaled['customer_id'].isin(marko_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(marko_clients_id_list)]
 
 
 def k_distance_graph(info_df_scaled, k):
@@ -310,11 +309,17 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
     info_df_clustered = info_df_scaled.copy()
     info_df_clustered['cluster'] = clusters
 
+    return info_df_clustered
+
+
+
+
+def generate_cluster_profiles(info_df_clustered):
     # Create a DataFrame to hold the cluster profiles for each cluster
     # This will give you the mean values of each feature for each cluster
     cluster_profiles = info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
 
-    return info_df_clustered, cluster_profiles
+    return cluster_profiles
 
 
 
