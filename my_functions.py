@@ -20,6 +20,8 @@ import scipy.cluster.hierarchy as sch
 from sklearn.decomposition import PCA
 from minisom import MiniSom
 
+from collections import Counter, defaultdict
+
 
 
 # ---------- Feature Engineering Functions ---------- #
@@ -58,6 +60,10 @@ def feature_engineering_info(data):
 
     # Add total childern column
     data['total_children'] = data['kids_home'] + data['teens_home']   
+
+    # Add customer_for column
+    data['customer_for'] = dt.datetime.now().year - data['year_first_transaction']
+    data.drop('year_first_transaction', axis=1, inplace=True)
 
 
 
@@ -338,5 +344,131 @@ def calculate_f_statistic_importance(df, cluster_col='cluster'):
     plt.ylabel('')
     plt.tight_layout()
     plt.show()
+
+
+
+# ---------- Association Rules ---------- #
+
+def get_association_rules_by_cluster(basket_df, info_df_clustered, min_lift=1.3):
+    """
+    Find association rules: "If customer buys A, they're likely to buy B"
+    Returns top 5 rules per cluster with highest lift
+    """
+    # Step 1: Merge with cluster info
+    df = basket_df.merge(info_df_clustered, on='customer_id', how='left')
+    df['cluster'] = df['cluster'].fillna(-1).astype(int)
+    
+    results = {}
+    
+    # Step 2: Process each cluster
+    for cluster in df['cluster'].unique()[df['cluster'].unique() != -1]:  # Exclude -1 cluster (if any)
+        
+        cluster_data = df[df['cluster'] == cluster]
+        
+        # Get transactions (baskets) for this cluster
+        transactions = []
+        for _, row in cluster_data.iterrows():
+            items = row['list_of_goods']
+            if isinstance(items, list):
+                transactions.append(set(items))
+            else:
+                transactions.append({items})
+        
+        total_transactions = len(transactions)
+        
+        if total_transactions < 10:
+            print(f"  Skipping cluster {cluster} - too few transactions")
+            continue
+        
+        # Count individual items
+        item_counts = Counter()
+        for basket in transactions:
+            for item in basket:
+                item_counts[item] += 1
+        
+        # Only consider items that appear in at least 5 transactions
+        min_support_count = max(5, int(0.05 * total_transactions))
+        frequent_items = [item for item, count in item_counts.items() 
+                         if count >= min_support_count]
+        
+        if len(frequent_items) < 2:
+            print(f"  Skipping cluster {cluster} - not enough frequent items")
+            continue
+        
+        # Find association rules: A → B
+        rules = []
+        
+        for item_a in frequent_items:
+            for item_b in frequent_items:
+                if item_a != item_b:
+                    # Count transactions
+                    has_a = 0          # P(A)
+                    has_b = 0          # P(B)  
+                    has_both = 0       # P(A ∩ B)
+                    
+                    for basket in transactions:
+                        if item_a in basket:
+                            has_a += 1
+                            if item_b in basket:
+                                has_both += 1
+                        if item_b in basket:
+                            has_b += 1
+                    
+                    if has_a > 0 and has_both > 0:
+                        # Calculate metrics
+                        support_a = has_a / total_transactions
+                        support_b = has_b / total_transactions
+                        support_ab = has_both / total_transactions
+                        confidence = has_both / has_a  # P(B|A)
+                        lift = confidence / support_b if support_b > 0 else 0
+                        
+                        # Only keep rules with decent confidence and lift
+                        if confidence >= 0.1 and lift > min_lift:
+                            rules.append({
+                                'antecedent': item_a,      # If customer buys this...
+                                'consequent': item_b,      # ...they're likely to buy this
+                                'support': support_ab,
+                                'confidence': confidence,
+                                'lift': lift,
+                                'count_a': has_a,
+                                'count_both': has_both
+                            })
+        
+        # Sort by lift and get top 5
+        rules.sort(key=lambda x: x['lift'], reverse=True)
+        top_rules = rules[:5]
+        
+        results[cluster] = {
+            'rules': top_rules,
+            'total_transactions': total_transactions,
+            'frequent_items_count': len(frequent_items)
+        }
+        
+    return df, results
+
+
+
+def print_recommendations(cluster_results, cluster_names):
+
+    print("\n" + "="*80)
+    print("ASSOCIATION RULES RECOMMENDATIONS BY CLUSTER")
+    print("="*80)
+    
+    for cluster in sorted(cluster_results.keys()):
+        print(f"\n🔹 CLUSTER {cluster}")
+        print("   " + cluster_names[cluster])
+        print(f"   Total transactions: {cluster_results[cluster]['total_transactions']}")
+        
+        rules = cluster_results[cluster]['rules']
+        if not rules:
+            print("   No strong association rules found")
+            continue
+        
+        print("   Top recommendations:")
+        for i, rule in enumerate(rules, 1):
+            print(f"   {i}. If customer buys '{rule['antecedent']}'")
+            print(f"      → {rule['confidence']:.0%} likely to also buy '{rule['consequent']}'")
+            print(f"      → {rule['lift']:.1f}x more likely than average")
+            print()
 
 
