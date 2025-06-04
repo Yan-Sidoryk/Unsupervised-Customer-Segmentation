@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 
 import datetime as dt
-import reverse_geocoder as rg
 from collections import Counter
 
 import matplotlib.pyplot as plt
