@@ -121,6 +121,7 @@ def extra_preprocessing(data, k=5):
     info_df.drop(columns=['customer_name'], inplace=True)
 
     # Drop the columns that were only kept for visualization
+    info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
@@ -133,7 +134,7 @@ def extra_preprocessing(data, k=5):
     
 
     # One-hot encode categorical columns
-    encoder = OneHotEncoder( sparse_output=False)   #drop='first',
+    encoder = OneHotEncoder(drop='first', sparse_output=False)
     info_df_cat_encoded = pd.DataFrame(
         encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
         columns=encoder.get_feature_names_out(categorical_cols),
