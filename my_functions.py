@@ -151,7 +151,7 @@ def extra_preprocessing(data, k=5):
     # Get the Marko clients
     marko_clients_id_list = info_df[
         (
-            (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213011) &
+            (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213008) &
             (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
         )]['customer_id'].tolist()
 
