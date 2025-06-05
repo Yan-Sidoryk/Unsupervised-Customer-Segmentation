@@ -53,6 +53,13 @@ def feature_engineering_info(data, k=5):
     # Build back a dataframe with the imputed numerical columns and original categorical columns
     data = pd.concat([data[['customer_id']], data_imputed, data[categorical_cols]], axis=1)
 
+    # Make descrete numerical columns int again
+    data['kids_home'] = data['kids_home'].astype(int)
+    data['teens_home'] = data['teens_home'].astype(int)
+    data['distinct_stores_visited'] = data['distinct_stores_visited'].astype(int)
+    data['number_complaints'] = data['number_complaints'].astype(int)
+    data['typical_hour'] = data['typical_hour'].astype(int)
+
 
     # Add shopping time patterns 
     data['morning_shopper'] = data['typical_hour'].between(6, 11).astype(int)
