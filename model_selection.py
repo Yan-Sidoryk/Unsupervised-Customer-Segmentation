@@ -12,6 +12,7 @@ warnings.filterwarnings('ignore')
 
 
 
+# ---------- Model Selection ---------- #
 
 def find_optimal_k(data, max_k=10):
 
@@ -263,3 +264,45 @@ def clustering_comparison(data):
         print(f"\nBest Silhouette Score: {scores_df.loc[scores_df['Silhouette'].idxmax(), 'Algorithm']}")
     
     return results, scores_df
+
+
+
+# ---------- DBSCAN parameter tuning ---------- #
+
+def k_distance_graph(data, k):
+
+    # Compute the nearest neighbors
+    nbrs = NearestNeighbors(n_neighbors=k+1).fit(data)
+    distances, indices = nbrs.kneighbors(data)
+
+    # Sort the distances in ascending order
+    distances = np.sort(distances[:, k])  # Skip distance to self
+
+    # Create the k-distance graph
+    plt.figure(figsize=(10, 6))
+    plt.plot(distances)
+    plt.xlabel('Points sorted by distance')
+    plt.ylabel(f'Distance to {k}th nearest neighbor')
+    plt.title(f'K-Distance Graph (k={k})')
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def test_dbscan_params(data, eps_values, min_samples_values):
+
+    # Test different DBSCAN parameters and print results
+    results = []
+    for eps in eps_values:
+        for min_samples in min_samples_values:
+            dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+            labels = dbscan.fit_predict(data)
+            
+            n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+            n_outliers = sum(labels == -1)
+            outlier_pct = (n_outliers / len(data)) * 100
+            
+            print(f"eps={eps:.2f}, min_samples={min_samples}: "
+                  f"{n_clusters} clusters, {n_outliers} outliers ({outlier_pct:.1f}%)")

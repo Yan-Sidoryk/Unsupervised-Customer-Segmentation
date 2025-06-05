@@ -164,27 +164,6 @@ def extra_preprocessing(data, k=5):
     return info_df_scaled[~info_df_scaled['customer_id'].isin(marko_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(marko_clients_id_list)]
 
 
-def k_distance_graph(info_df_scaled, k):
-
-    # Compute the nearest neighbors
-    nbrs = NearestNeighbors(n_neighbors=k).fit(info_df_scaled)
-    distances, indices = nbrs.kneighbors(info_df_scaled)
-
-    # Sort the distances in ascending order
-    distances = np.sort(distances[:, k-1])  # Get the distance to the kth nearest neighbor
-
-    # Create the k-distance graph
-    plt.figure(figsize=(10, 6))
-    plt.plot(range(len(distances)), distances)
-    plt.xlabel('Points sorted by distance')
-    plt.ylabel(f'Distance to {k}th nearest neighbor')
-    plt.title(f'K-Distance Graph (k={k})')
-    plt.grid(True)
-
-    plt.tight_layout()
-    plt.show()
-
-
 
 def remove_outliers(info_df_scaled, eps, min_samples):
 
@@ -202,8 +181,8 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     plt.show()
 
     # Remove outliers, if there are any
-    info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
-    info_df_scaled.reset_index(drop=True, inplace=True)
+    # info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
+    # info_df_scaled.reset_index(drop=True, inplace=True)
 
     # Save outliers to a separate DataFrame
     outliers_df = info_df_clustered[info_df_clustered['DBScan'] == -1]
