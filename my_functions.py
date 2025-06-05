@@ -165,34 +165,6 @@ def extra_preprocessing(data, k=5):
 
 
 
-def remove_outliers(info_df_scaled, eps, min_samples):
-
-    # Create a temporary DataFrame to store cluster labels 
-    info_df_clustered = info_df_scaled.copy()
-
-    info_df_clustered['DBScan'] = DBSCAN(
-        eps=eps, 
-        min_samples=min_samples
-        ).fit_predict(info_df_scaled.drop(columns=['customer_id'], axis=1))
-        
-
-    # Plot the number of customers in each cluster
-    info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
-    plt.show()
-
-    # Remove outliers, if there are any
-    # info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
-    # info_df_scaled.reset_index(drop=True, inplace=True)
-
-    # Save outliers to a separate DataFrame
-    outliers_df = info_df_clustered[info_df_clustered['DBScan'] == -1]
-
-    print(f"Number of outliers removed: {len(outliers_df)}")
-
-    return info_df_scaled, outliers_df
-
-
-
 def pca_graph(info_df_scaled):
 
     # Plot explained variance ratio for different numbers of PCA components 
@@ -230,6 +202,34 @@ def dimensionality_reduction(info_df_scaled, n_comp):
     print(f"Total variance explained by {n_comp} components: {sum(explained_variance):.2%}")
 
     return info_df_pca
+
+
+
+def remove_outliers(info_df_scaled, eps, min_samples):
+
+    # Create a temporary DataFrame to store cluster labels 
+    info_df_clustered = info_df_scaled.copy()
+
+    info_df_clustered['DBScan'] = DBSCAN(
+        eps=eps, 
+        min_samples=min_samples
+        ).fit_predict(info_df_scaled.drop(columns=['customer_id'], axis=1))
+        
+
+    # Plot the number of customers in each cluster
+    info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
+    plt.show()
+
+    # Save outliers to a separate DataFrame
+    outliers_df = info_df_scaled[info_df_clustered['DBScan'] == -1]
+
+    # Remove outliers, if there are any
+    info_df_scaled = info_df_scaled[info_df_clustered['DBScan'] != -1]
+    info_df_scaled.reset_index(drop=True, inplace=True)
+
+    print(f"Number of outliers removed: {len(outliers_df)}")
+
+    return info_df_scaled, outliers_df
 
 
 
@@ -281,17 +281,29 @@ def elbow_and_silhouette(info_df_scaled, max_k, step=1):
 
 
 
-def kmeans_clustering(info_df_pca, info_df_scaled, k):
+def kmeans_clustering(info_df_pca, outliers_df, info_df_scaled, k):
 
-    # Fit KMeans with your chosen number of clusters 
+    # Fit KMeans with your chosen number of clusters
     kmeans = KMeans(n_clusters=k, random_state=42)
-    clusters = kmeans.fit_predict(info_df_pca.drop(columns=['customer_id']))
+    kmeans.fit(info_df_pca.drop(columns=['customer_id']))
 
-    # Create a new DataFrame to hold the scaled data and cluster labels
-    info_df_clustered = info_df_scaled.copy()
-    info_df_clustered['cluster'] = clusters
+    # Get the cluster labels for the main data
+    info_df_pca['cluster'] = kmeans.predict(info_df_pca.drop(columns=['customer_id']))
+
+    # Get the cluster labels for the outliers
+    outliers_df['cluster'] = kmeans.predict(outliers_df.drop(columns=['customer_id']))
+
+    # Combine the lables from both DataFrames with the info_df_scaled for final output
+    info_df_clustered = info_df_scaled.merge(
+            pd.concat([info_df_pca[['customer_id', 'cluster']],
+                        outliers_df[['customer_id', 'cluster']]]),
+            on='customer_id',
+            how='right'
+            )
 
     return info_df_clustered
+
+
 
 
 
