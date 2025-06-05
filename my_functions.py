@@ -517,3 +517,76 @@ def print_recommendations(cluster_results, cluster_names):
             print()
 
 
+
+
+from mlxtend.frequent_patterns import apriori, association_rules
+from mlxtend.preprocessing import TransactionEncoder
+
+def get_association_rules_mlxtend(basket_df, info_df_clustered, 
+                                  min_support=0.05, min_threshold=1.3):
+    """
+    Using MLxtend - the most popular association rules library.
+    Very efficient and well-documented.
+    """
+    # Merge data
+    df = basket_df.merge(info_df_clustered, on='customer_id', how='inner')
+    df = df.dropna(subset=['cluster', 'list_of_goods'])
+    
+    results = {}
+    
+    for cluster in df['cluster'].unique():
+        print(f"\nProcessing cluster {cluster}...")
+        cluster_data = df[df['cluster'] == cluster]
+        
+        # Prepare transactions
+        transactions = []
+        for items in cluster_data['list_of_goods']:
+            if isinstance(items, list):
+                transactions.append(items)
+            else:
+                transactions.append([str(items)])
+        
+        if len(transactions) < 10:
+            continue
+            
+        # Convert to one-hot encoded format
+        te = TransactionEncoder()
+        te_ary = te.fit(transactions).transform(transactions)
+        df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+        
+        # Find frequent itemsets
+        frequent_itemsets = apriori(df_encoded, min_support=min_support, use_colnames=True)
+        
+        if len(frequent_itemsets) == 0:
+            continue
+            
+        # Generate association rules
+        rules = association_rules(frequent_itemsets, metric="lift", min_threshold=min_threshold)
+        
+        if len(rules) == 0:
+            continue
+            
+        # Format results
+        rules_list = []
+        for _, rule in rules.iterrows():
+            rules_list.append({
+                'antecedent': ', '.join(list(rule['antecedents'])),
+                'consequent': ', '.join(list(rule['consequents'])),
+                'support': rule['support'],
+                'confidence': rule['confidence'],
+                'lift': rule['lift'],
+                'conviction': rule['conviction']
+            })
+        
+        # Sort by lift and take top 5
+        rules_list.sort(key=lambda x: x['lift'], reverse=True)
+        
+        results[cluster] = {
+            'rules': rules_list[:5],
+            'total_transactions': len(transactions),
+            'total_rules_found': len(rules_list)
+        }
+        
+        print(f"  Found {len(rules_list)} rules from {len(transactions)} transactions")
+    
+    return df, results
