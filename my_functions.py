@@ -238,9 +238,6 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
     # Get the cluster labels for the main data
     info_df_pca['cluster'] = kmeans.predict(info_df_pca.drop(columns=['customer_id']))
 
-    # Get the cluster labels for the outliers
-    # outliers_df['cluster'] = kmeans.predict(outliers_df.drop(columns=['customer_id']))
-
     # Combine the lables from both DataFrames with the info_df_scaled for final output
     info_df_clustered = info_df_scaled.merge(
             info_df_pca[['customer_id', 'cluster']],

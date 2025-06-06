@@ -10,6 +10,89 @@ from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
+import plotly.graph_objects as go
+import plotly.express as px
+
+
+# Get unique clusters and colors
+unique_clusters = sorted(info_df_with_cluster['cluster'].unique())
+colors = px.colors.qualitative.G10
+
+# Create figure with individual traces for each cluster
+fig = go.Figure()
+
+# Add a separate trace for each cluster
+for i, cluster in enumerate(unique_clusters):
+    cluster_data = info_df_with_cluster[info_df_with_cluster['cluster'] == cluster]
+    
+    # Create hover text
+    hover_text = [
+        f"Customer ID: {cid}<br>Cluster: {cluster}<br>Lat: {lat:.4f}<br>Lon: {lon:.4f}"
+        for cid, lat, lon in zip(
+            cluster_data['customer_id'], 
+            cluster_data['latitude'], 
+            cluster_data['longitude']
+        )
+    ]
+    
+    fig.add_trace(go.Scattermapbox(
+        lat=cluster_data['latitude'],
+        lon=cluster_data['longitude'],
+        mode='markers',
+        marker=dict(
+            size=8,
+            color=colors[i % len(colors)],
+            opacity=0.8
+        ),
+        text=hover_text,
+        hoverinfo='text',
+        name=f'Cluster {cluster} ({len(cluster_data)} customers)',
+        visible=True
+    ))
+
+# Calculate center point
+center_lat = info_df_with_cluster['latitude'].mean()
+center_lon = info_df_with_cluster['longitude'].mean()
+
+
+# Individual cluster buttons
+for i, cluster in enumerate(unique_clusters):
+    visible_array = [False] * len(unique_clusters)
+    visible_array[i] = True
+    
+
+# Update layout with all your original settings plus new interactive features
+fig.update_layout(
+    mapbox=dict(
+        style="open-street-map",
+        center=dict(lat=center_lat, lon=center_lon),
+        zoom=11
+    ),
+    height=600,
+    width=1000,
+    margin=dict(l=0, r=0, t=40, b=0),
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)',
+    title={
+        'text': f'Customer Clusters - {len(info_df_with_cluster)} customers',
+        'x': 0.5,
+        'xanchor': 'center'
+    },
+    legend=dict(
+        orientation="v",
+        yanchor="top",
+        y=1,
+        xanchor="left", 
+        x=1.02,
+        bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="rgba(0,0,0,0.2)",
+        borderwidth=1
+    )
+)
+
+# Show the map
+fig.show()
+
 # Set style for consistency
 plt.style.use('default')
 sns.set_palette("husl")
@@ -416,3 +499,85 @@ def plot_feature_importance(df, cluster_col='cluster'):
     
     plt.tight_layout()
     plt.show()
+
+
+
+def plot_clusters_map(info_df_with_cluster, cluster_col='cluster'):
+    # Get unique clusters and colors
+    unique_clusters = sorted(info_df_with_cluster['cluster'].unique())
+    colors = px.colors.qualitative.G10
+
+    # Create figure with individual traces for each cluster
+    fig = go.Figure()
+
+    # Add a separate trace for each cluster
+    for i, cluster in enumerate(unique_clusters):
+        cluster_data = info_df_with_cluster[info_df_with_cluster['cluster'] == cluster]
+        
+        # Create hover text
+        hover_text = [
+            f"Customer ID: {cid}<br>Cluster: {cluster}<br>Lat: {lat:.4f}<br>Lon: {lon:.4f}"
+            for cid, lat, lon in zip(
+                cluster_data['customer_id'], 
+                cluster_data['latitude'], 
+                cluster_data['longitude']
+            )
+        ]
+        
+        fig.add_trace(go.Scattermapbox(
+            lat=cluster_data['latitude'],
+            lon=cluster_data['longitude'],
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=colors[i % len(colors)],
+                opacity=0.8
+            ),
+            text=hover_text,
+            hoverinfo='text',
+            name=f'Cluster {cluster} ({len(cluster_data)} customers)',
+            visible=True
+        ))
+
+    # Calculate center point
+    center_lat = info_df_with_cluster['latitude'].mean()
+    center_lon = info_df_with_cluster['longitude'].mean()
+
+
+    # Individual cluster buttons
+    for i, cluster in enumerate(unique_clusters):
+        visible_array = [False] * len(unique_clusters)
+        visible_array[i] = True
+        
+
+    # Update layout with all your original settings plus new interactive features
+    fig.update_layout(
+        mapbox=dict(
+            style="open-street-map",
+            center=dict(lat=center_lat, lon=center_lon),
+            zoom=11
+        ),
+        height=600,
+        width=1000,
+        margin=dict(l=0, r=0, t=40, b=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title={
+            'text': f'Customer Clusters - {len(info_df_with_cluster)} customers',
+            'x': 0.5,
+            'xanchor': 'center'
+        },
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left", 
+            x=1.02,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="rgba(0,0,0,0.2)",
+            borderwidth=1
+        )
+    )
+
+    # Show the map
+    fig.show()
