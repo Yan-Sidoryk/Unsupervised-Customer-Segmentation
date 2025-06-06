@@ -229,7 +229,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 
 
 
-def kmeans_clustering(info_df_pca, outliers_df, info_df_scaled, k):
+def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
     # Fit KMeans with your chosen number of clusters
     kmeans = KMeans(n_clusters=k, random_state=42)
@@ -239,12 +239,11 @@ def kmeans_clustering(info_df_pca, outliers_df, info_df_scaled, k):
     info_df_pca['cluster'] = kmeans.predict(info_df_pca.drop(columns=['customer_id']))
 
     # Get the cluster labels for the outliers
-    outliers_df['cluster'] = kmeans.predict(outliers_df.drop(columns=['customer_id']))
+    # outliers_df['cluster'] = kmeans.predict(outliers_df.drop(columns=['customer_id']))
 
     # Combine the lables from both DataFrames with the info_df_scaled for final output
     info_df_clustered = info_df_scaled.merge(
-            pd.concat([info_df_pca[['customer_id', 'cluster']],
-                        outliers_df[['customer_id', 'cluster']]]),
+            info_df_pca[['customer_id', 'cluster']],
             on='customer_id',
             how='right'
             )
