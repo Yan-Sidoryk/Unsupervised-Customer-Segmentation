@@ -8,6 +8,7 @@ import plotly.express as px
 
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 
 # Set style for consistency
 plt.style.use('default')
@@ -94,7 +95,7 @@ def plot_dbscan_counts(info_df_clustered, cluster_column='DBScan', figsize=(10, 
     x_labels = []
     for label in unique_labels:
         if label == -1:
-            x_labels.append('Noise')
+            x_labels.append('Outliers ')
         else:
             x_labels.append(f'C{label}')
     
@@ -120,7 +121,70 @@ def plot_dbscan_counts(info_df_clustered, cluster_column='DBScan', figsize=(10, 
 
 
 
-def plot_cluster_counts(info_df_clustered, cluster_column='cluster', figsize=(10, 6)):
+def plot_elbow_and_silhouette(info_df_scaled, max_k=10, step=1):
+    
+    # Setup for tracking both metrics
+    k_range = range(2, max_k+1, step)  # Silhouette score requires at least 2 clusters
+    inertia_values = []
+    silhouette_scores = []
+
+    # Calculate both metrics for each k value
+    for k in k_range:
+        # Create and fit KMeans model
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        cluster_labels = kmeans.fit_predict(info_df_scaled.drop(columns=['customer_id']))
+        
+        # Store inertia (sum of squared distances to nearest centroid)
+        inertia_values.append(kmeans.inertia_)
+        
+        # Calculate and store silhouette score
+        silhouette_avg = silhouette_score(info_df_scaled.drop(columns=['customer_id']), cluster_labels)
+        silhouette_scores.append(silhouette_avg)
+
+    # Create the plot
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+
+    # Enhanced styling colors
+    inertia_color = '#6e80a9'
+    silhouette_color = '#86b637'
+
+    # Plot 1: Elbow Method on the left y-axis
+    ax1.set_xlabel('Number of Clusters (k)', fontsize=12, fontweight='bold')
+    ax1.set_ylabel('Inertia (Sum of Squared Distances)', color=inertia_color, fontsize=12, fontweight='bold')
+    line1 = ax1.plot(k_range, inertia_values, 'o-', color=inertia_color, 
+                     linewidth=2.5, markersize=8, markerfacecolor=inertia_color,
+                     markeredgecolor='white', markeredgewidth=2,
+                     label='Inertia', alpha=0.8)
+    ax1.tick_params(axis='y', labelcolor=inertia_color, labelsize=10)
+
+    # Create a second y-axis sharing the same x-axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Silhouette Score', color=silhouette_color, fontsize=12, fontweight='bold')
+    line2 = ax2.plot(k_range, silhouette_scores, 's-', color=silhouette_color,
+                     linewidth=2.5, markersize=8, markerfacecolor=silhouette_color,
+                     markeredgecolor='white', markeredgewidth=2,
+                     label='Silhouette Score', alpha=0.8)
+    ax2.tick_params(axis='y', labelcolor=silhouette_color, labelsize=10)
+
+    # Add title
+    ax1.set_title('K-Means Optimization: Elbow Method & Silhouette Analysis', 
+                  fontsize=14, fontweight='bold', pad=20)
+
+    # Clean styling
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    ax1.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+
+    # Set x-ticks
+    ax1.set_xticks(k_range)
+    ax1.tick_params(axis='x', labelsize=10)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_cluster_counts(info_df_clustered, cluster_column='cluster'):
     
     # Get cluster counts
     cluster_counts = info_df_clustered.groupby([cluster_column]).size()
@@ -130,7 +194,7 @@ def plot_cluster_counts(info_df_clustered, cluster_column='cluster', figsize=(10
     colors = plt.cm.Set2(np.linspace(0, 1, len(unique_labels)))[::-1]  # Reverse the order for better visibility
     
     # Create the plot
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=(10, 6))
     
     # Create bars
     bars = ax.bar(range(len(unique_labels)), cluster_counts.values, 
@@ -267,6 +331,88 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     y_min = min(0, min(avg_scores) - 0.1)
     y_max = max(avg_scores) + 0.1
     ax2.set_ylim([y_min, y_max])
+    
+    plt.tight_layout()
+    plt.show()
+
+    # Return average cluster silhouette scores as a sorted dictionary
+    avg_cluster_scores = {key : cluster_stats[key]['avg_score'] for key in cluster_stats.keys()}
+    return dict(sorted(avg_cluster_scores.items(), key=lambda item: item[1], reverse=True))
+
+
+
+def plot_feature_importance(df, cluster_col='cluster'):
+
+    # Calculate feature importance
+    features = df.drop(columns=[cluster_col]).columns
+    importance = {}
+    
+    for feature in features:
+        # Calculate between-cluster variance (weighted by cluster size)
+        cluster_means = df.groupby(cluster_col)[feature].mean()
+        overall_mean = df[feature].mean()
+        n_clusters = len(cluster_means)
+        n_samples = len(df)
+        
+        between_variance = sum(
+            df[cluster_col].value_counts()[cluster] * 
+            (cluster_means[cluster] - overall_mean)**2 
+            for cluster in range(n_clusters)
+        ) / (n_clusters - 1) if n_clusters > 1 else 0
+        
+        # Calculate within-cluster variance
+        within_variance = sum(
+            sum((df.loc[df[cluster_col] == cluster, feature] - cluster_means[cluster])**2)
+            for cluster in range(n_clusters)
+        ) / (n_samples - n_clusters) if (n_samples - n_clusters) > 0 else 1
+        
+        # F-statistic is the ratio of between-variance to within-variance
+        importance[feature] = between_variance / within_variance if within_variance > 0 else float('inf')
+    
+    importance_series = pd.Series(importance).sort_values(ascending=False)
+    
+    # Create color gradient based on importance values
+    colors = []
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    # Create horizontal bar plot
+    bars = ax.barh(range(len(importance_series)), importance_series.values, color='#DBB714',
+                    alpha=0.8, edgecolor='white', linewidth=1)
+    
+    # Customize the plot
+    ax.set_xlabel('F-statistic (Feature Importance)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('')
+    ax.set_title('Feature Importance for Clustering', fontsize=14, fontweight='bold', pad=20)
+    
+    # Set y-axis labels
+    ax.set_yticks(range(len(importance_series)))
+    ax.set_yticklabels(importance_series.index)
+    
+    # Add grid and clean styling
+    ax.grid(True, alpha=0.3, axis='x', linestyle='--')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(0.8)
+    ax.spines['bottom'].set_linewidth(0.8)
+    
+    # Add value labels on bars
+    for i, (bar, value) in enumerate(zip(bars, importance_series.values)):
+        width = bar.get_width()
+        if np.isfinite(value):
+            ax.text(width + max(importance_series.values) * 0.01, bar.get_y() + bar.get_height()/2,
+                    f'{value:.2f}', ha='left', va='center', fontsize=9)
+        else:
+            ax.text(width * 0.5, bar.get_y() + bar.get_height()/2,
+                    '∞', ha='center', va='center', fontsize=12, color='white')
+    
+    # Invert y-axis to show most important features at the top
+    ax.invert_yaxis()
+    
+    # Set x-axis limits with some padding
+    max_val = max([v for v in importance_series.values if np.isfinite(v)])
+    ax.set_xlim([0, max_val * 1.15])
     
     plt.tight_layout()
     plt.show()

@@ -229,54 +229,6 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 
 
 
-def elbow_and_silhouette(info_df_scaled, max_k, step=1):
-
-    # Setup for tracking both metrics
-    k_range = range(2, max_k+1, step)  # Silhouette score requires at least 2 clusters
-    inertia_values = []
-    silhouette_scores = []
-
-    # Calculate both metrics for each k value
-    for k in k_range:
-        # Create and fit KMeans model
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-        cluster_labels = kmeans.fit_predict(info_df_scaled.drop(columns=['customer_id']))
-        
-        # Store inertia (sum of squared distances to nearest centroid)
-        inertia_values.append(kmeans.inertia_)
-        
-        # Calculate and store silhouette score
-        silhouette_avg = silhouette_score(info_df_scaled.drop(columns=['customer_id']), cluster_labels)
-        silhouette_scores.append(silhouette_avg)
-        
-    # Create a figure with two subplots
-    fig, ax1 = plt.subplots(figsize=(16, 6))
-
-    # Plot 1: Elbow Method on the left y-axis
-    color = 'tab:blue'
-    ax1.set_xlabel('Number of Clusters (k)', fontsize=12)
-    ax1.set_ylabel('Inertia (Sum of Squared Distances)', color=color, fontsize=12)
-    ax1.plot(k_range, inertia_values, 'o-', color=color, markersize=8, label='Inertia')
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax1.grid(True, linestyle='--', alpha=0.7)
-
-    # Create a second y-axis sharing the same x-axis
-    ax2 = ax1.twinx()
-    color = 'tab:green'
-    ax2.set_ylabel('Silhouette Score', color=color, fontsize=12)
-    ax2.plot(k_range, silhouette_scores, 'o-', color=color, markersize=8, label='Silhouette Score')
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    # Add a title
-    plt.title('Elbow Method and Silhouette Score for Optimal k', fontsize=14)
-    plt.xticks(k_range)  # Set x-ticks to match k_range
-
-    # Adjust layout
-    plt.tight_layout()
-    plt.show()
-
-
-
 def kmeans_clustering(info_df_pca, outliers_df, info_df_scaled, k):
 
     # Fit KMeans with your chosen number of clusters
@@ -339,45 +291,6 @@ def generate_cluster_names(cluster_profiles, z_threshold, max_features=4):
         labels[i] = f"{high_label} | {low_label}"
     
     return labels
-
-
-
-def calculate_f_statistic_importance(df, cluster_col='cluster'):
-
-    features = df.drop(columns=[cluster_col]).columns
-    importance = {}
-    
-    for feature in features:
-        # Calculate between-cluster variance (weighted by cluster size)
-        cluster_means = df.groupby(cluster_col)[feature].mean()
-        overall_mean = df[feature].mean()
-        n_clusters = len(cluster_means)
-        n_samples = len(df)
-        
-        between_variance = sum(
-            df[cluster_col].value_counts()[cluster] * 
-            (cluster_means[cluster] - overall_mean)**2 
-            for cluster in range(n_clusters)
-        ) / (n_clusters - 1) if n_clusters > 1 else 0
-        
-        # Calculate within-cluster variance
-        within_variance = sum(
-            sum((df.loc[df[cluster_col] == cluster, feature] - cluster_means[cluster])**2)
-            for cluster in range(n_clusters)
-        ) / (n_samples - n_clusters) if (n_samples - n_clusters) > 0 else 1
-        
-        # F-statistic is the ratio of between-variance to within-variance
-        importance[feature] = between_variance / within_variance if within_variance > 0 else float('inf')
-    
-    importance_series = pd.Series(importance).sort_values(ascending=False)
-
-    # Visualization of feature importance
-    plt.figure(figsize=(15, 7))
-    sns.barplot(y=importance_series.index, x=importance_series.values, color='skyblue')
-    plt.title('Feature Importance (F-statistic)', fontsize=16)
-    plt.ylabel('')
-    plt.tight_layout()
-    plt.show()
 
 
 
