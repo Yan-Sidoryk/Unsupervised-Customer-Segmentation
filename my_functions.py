@@ -11,7 +11,7 @@ import plotly.express as px
 
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import RobustScaler, OneHotEncoder
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.neighbors import NearestNeighbors
 
 from sklearn.cluster import KMeans, DBSCAN, MeanShift
@@ -20,6 +20,8 @@ from sklearn.decomposition import PCA
 from minisom import MiniSom
 
 from collections import Counter, defaultdict
+
+from visualizations import plot_dbscan_counts
 
 
 
@@ -182,28 +184,6 @@ def extra_preprocessing(data, k=5):
 
 
 
-def pca_graph(info_df_scaled):
-
-    # Plot explained variance ratio for different numbers of PCA components 
-    explained_variances = []
-    n_components_range = range(1, info_df_scaled.shape[1])  # Up to max features
-
-    for n in n_components_range:
-        pca_tmp = PCA(n_components=n)
-        pca_tmp.fit(info_df_scaled.drop(columns=['customer_id'], axis=1))  # Exclude customer_id from PCA
-        explained_variances.append(pca_tmp.explained_variance_ratio_.sum() * 100)  # Convert to percent
-
-    plt.figure(figsize=(8, 5))
-    plt.plot(n_components_range, explained_variances, marker='o')
-    plt.xlabel('Number of PCA Components')
-    plt.ylabel('Cumulative Explained Variance (%)')
-    plt.title('PCA: Explained Variance vs Number of Components')
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-
 def dimensionality_reduction(info_df_scaled, n_comp):
 
     # Apply PCA for dimensionality reduction
@@ -234,8 +214,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
         
 
     # Plot the number of customers in each cluster
-    info_df_clustered.groupby(['DBScan']).size().plot(kind='bar', color='skyblue')
-    plt.show()
+    plot_dbscan_counts(info_df_clustered)
 
     # Save outliers to a separate DataFrame
     outliers_df = info_df_scaled[info_df_clustered['DBScan'] == -1]
