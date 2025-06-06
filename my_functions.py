@@ -78,6 +78,16 @@ def feature_engineering_info(data, k=5):
 
     # Add column for education level 
     data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
+    # Define the mapping for degree_level to ordinal values
+    degree_level_mapping = {
+        'None': 0,
+        'Bsc': 1,
+        'Msc': 2,
+        'Phd': 3
+    }
+
+    # Apply the mapping to the degree_level column
+    data['degree_level_ordinal'] = data['degree_level'].map(degree_level_mapping)
 
     # Add total childern column
     data['total_children'] = data['kids_home'] + data['teens_home']   
@@ -128,7 +138,7 @@ def extra_preprocessing(data, k=5):
     info_df.drop(columns=['customer_name'], inplace=True)
 
     # Drop the columns that were only kept for visualization
-    info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper'], inplace=True)
+    info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
