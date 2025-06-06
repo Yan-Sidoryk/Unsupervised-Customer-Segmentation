@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 import datetime as dt
-from collections import Counter
+from collections import Counter, defaultdict
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -19,7 +19,8 @@ import scipy.cluster.hierarchy as sch
 from sklearn.decomposition import PCA
 from minisom import MiniSom
 
-from collections import Counter, defaultdict
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules
 
 from visualizations import plot_dbscan_counts
 
@@ -99,7 +100,7 @@ def feature_engineering_info(data, k=5):
     data.drop('year_first_transaction', axis=1, inplace=True)
 
     # Remove the negative values from percentage of products bought on promotion (probably a typing error)
-    data['percentage_of_products_bought_promotion'] = data['percentage_of_products_bought_promotion'].abs()
+    data['percentage_of_products_bought_promotion'] = data['percentage_of_products_bought_promotion'].abs().clip(upper=1)
 
     return data
 
@@ -141,6 +142,7 @@ def extra_preprocessing(data, k=5):
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
+    info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
@@ -176,6 +178,8 @@ def extra_preprocessing(data, k=5):
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
+    info_df_num_scaled['spend_vegetables_percent'] = info_df_num_scaled['spend_vegetables_percent'] / 2
+    # info_df_num_scaled['total_children'] = info_df_num_scaled['total_children'] * 2
 
     # Combine all features
     info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
@@ -210,6 +214,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
     info_df_clustered['DBScan'] = DBSCAN(
         eps=eps, 
         min_samples=min_samples
+        
         ).fit_predict(info_df_scaled.drop(columns=['customer_id'], axis=1))
         
 
@@ -232,7 +237,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
     # Fit KMeans with your chosen number of clusters
-    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(info_df_pca.drop(columns=['customer_id']))
 
     # Get the cluster labels for the main data
@@ -292,199 +297,99 @@ def generate_cluster_names(cluster_profiles, z_threshold, max_features=4):
 
 # ---------- Association Rules ---------- #
 
-def get_association_rules_by_cluster(basket_df, info_df_clustered, min_lift=1.3):
+from scipy.stats import entropy
+
+def optimal_min_support(frequencies, n_transactions):
     """
-    Find association rules: "If customer buys A, they're likely to buy B"
-    Returns top 5 rules per cluster with highest lift
+    Calculates optimal min_support based on item frequency distribution
+    
+    Parameters:
+    frequencies (np.array): Support values for individual items
+    n_transactions (int): Total number of transactions
+    
+    Returns:
+    float: Optimal min_support value
     """
-    # Step 1: Merge with cluster info
-    df = basket_df.merge(info_df_clustered, on='customer_id', how='left')
-    df['cluster'] = df['cluster'].fillna(-1).astype(int)
+    # 1. Calculate frequency entropy
+    # Normalize frequencies to get probability distribution
+    freq_sum = frequencies.sum()
+    if freq_sum > 0:
+        norm_freq = frequencies / freq_sum
+        freq_entropy = entropy(norm_freq)
+    else:
+        freq_entropy = 1.0  # Default value if no frequencies
     
-    results = {}
+    # 2. Calculate distribution metrics
+    gini = 1 - (frequencies ** 2).sum() / (frequencies.sum() ** 2) if len(frequencies) > 0 else 0.5
+    cv = np.std(frequencies) / np.mean(frequencies) if len(frequencies) > 0 and np.mean(frequencies) > 0 else 1.0
     
-    # Step 2: Process each cluster
-    for cluster in df['cluster'].unique()[df['cluster'].unique() != -1]:  # Exclude -1 cluster (if any)
-        
-        cluster_data = df[df['cluster'] == cluster]
-        
-        # Get transactions (baskets) for this cluster
-        transactions = []
-        for _, row in cluster_data.iterrows():
-            items = row['list_of_goods']
-            if isinstance(items, list):
-                transactions.append(set(items))
-            else:
-                transactions.append({items})
-        
-        total_transactions = len(transactions)
-        
-        if total_transactions < 10:
-            print(f"  Skipping cluster {cluster} - too few transactions")
-            continue
-        
-        # Count individual items
-        item_counts = Counter()
-        for basket in transactions:
-            for item in basket:
-                item_counts[item] += 1
-        
-        # Only consider items that appear in at least 5 transactions
-        min_support_count = max(5, int(0.05 * total_transactions))
-        frequent_items = [item for item, count in item_counts.items() 
-                         if count >= min_support_count]
-        
-        if len(frequent_items) < 2:
-            print(f"  Skipping cluster {cluster} - not enough frequent items")
-            continue
-        
-        # Find association rules: A → B
-        rules = []
-        
-        for item_a in frequent_items:
-            for item_b in frequent_items:
-                if item_a != item_b:
-                    # Count transactions
-                    has_a = 0          # P(A)
-                    has_b = 0          # P(B)  
-                    has_both = 0       # P(A ∩ B)
-                    
-                    for basket in transactions:
-                        if item_a in basket:
-                            has_a += 1
-                            if item_b in basket:
-                                has_both += 1
-                        if item_b in basket:
-                            has_b += 1
-                    
-                    if has_a > 0 and has_both > 0:
-                        # Calculate metrics
-                        support_a = has_a / total_transactions
-                        support_b = has_b / total_transactions
-                        support_ab = has_both / total_transactions
-                        confidence = has_both / has_a  # P(B|A)
-                        lift = confidence / support_b if support_b > 0 else 0
-                        
-                        # Only keep rules with decent confidence and lift
-                        if confidence >= 0.1 and lift > min_lift:
-                            rules.append({
-                                'antecedent': item_a,      # If customer buys this...
-                                'consequent': item_b,      # ...they're likely to buy this
-                                'support': support_ab,
-                                'confidence': confidence,
-                                'lift': lift,
-                                'count_a': has_a,
-                                'count_both': has_both
-                            })
-        
-        # Sort by lift and get top 5
-        rules.sort(key=lambda x: x['lift'], reverse=True)
-        top_rules = rules[:5]
-        
-        results[cluster] = {
-            'rules': top_rules,
-            'total_transactions': total_transactions,
-            'frequent_items_count': len(frequent_items)
-        }
-        
-    return df, results
-
-
-
-def print_recommendations(cluster_results, cluster_names):
-
-    print("\n" + "="*80)
-    print("ASSOCIATION RULES RECOMMENDATIONS BY CLUSTER")
-    print("="*80)
+    # 3. Base support (25th percentile)
+    q25 = np.quantile(frequencies, 0.25) if len(frequencies) > 0 else 0.05
     
-    for cluster in sorted(cluster_results.keys()):
-        print(f"\n🔹 CLUSTER {cluster}")
-        print("   " + cluster_names[cluster])
-        print(f"   Total transactions: {cluster_results[cluster]['total_transactions']}")
-        
-        rules = cluster_results[cluster]['rules']
-        if not rules:
-            print("   No strong association rules found")
-            continue
-        
-        print("   Top recommendations:")
-        for i, rule in enumerate(rules, 1):
-            print(f"   {i}. If customer buys '{rule['antecedent']}'")
-            print(f"      → {rule['confidence']:.0%} likely to also buy '{rule['consequent']}'")
-            print(f"      → {rule['lift']:.1f}x more likely than average")
-            print()
-
-
-
-
-from mlxtend.frequent_patterns import apriori, association_rules
-from mlxtend.preprocessing import TransactionEncoder
-
-def get_association_rules_mlxtend(basket_df, info_df_clustered, 
-                                  min_support=0.05, min_threshold=1.3):
-    """
-    Using MLxtend - the most popular association rules library.
-    Very efficient and well-documented.
-    """
-    # Merge data
-    df = basket_df.merge(info_df_clustered, on='customer_id', how='inner')
-    df = df.dropna(subset=['cluster', 'list_of_goods'])
+    # 4. Entropy-based adjustment
+    entropy_factor = max(0.5, min(2.0, 1.5 - (freq_entropy / 3)))  # Normalized entropy adjustment
     
-    results = {}
+    # 5. Size-based adjustment
+    size_factor = min(1.0, max(0.2, 1000 / n_transactions))
     
-    for cluster in df['cluster'].unique():
-        print(f"\nProcessing cluster {cluster}...")
-        cluster_data = df[df['cluster'] == cluster]
-        
-        # Prepare transactions
-        transactions = []
-        for items in cluster_data['list_of_goods']:
-            if isinstance(items, list):
-                transactions.append(items)
-            else:
-                transactions.append([str(items)])
-        
-        if len(transactions) < 10:
-            continue
-            
-        # Convert to one-hot encoded format
-        te = TransactionEncoder()
-        te_ary = te.fit(transactions).transform(transactions)
-        df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
-        
-        # Find frequent itemsets
-        frequent_itemsets = apriori(df_encoded, min_support=min_support, use_colnames=True)
-        
-        if len(frequent_itemsets) == 0:
-            continue
-            
-        # Generate association rules
-        rules = association_rules(frequent_itemsets, metric="lift", min_threshold=min_threshold)
-        
-        if len(rules) == 0:
-            continue
-            
-        # Format results
-        rules_list = []
-        for _, rule in rules.iterrows():
-            rules_list.append({
-                'antecedent': ', '.join(list(rule['antecedents'])),
-                'consequent': ', '.join(list(rule['consequents'])),
-                'support': rule['support'],
-                'confidence': rule['confidence'],
-                'lift': rule['lift'],
-                'conviction': rule['conviction']
-            })
-        
-        # Sort by lift and take top 5
-        rules_list.sort(key=lambda x: x['lift'], reverse=True)
-        
-        results[cluster] = {
-            'rules': rules_list[:5],
-            'total_transactions': len(transactions),
-            'total_rules_found': len(rules_list)
-        }
-        
-        print(f"  Found {len(rules_list)} rules from {len(transactions)} transactions")
+    # 6. Calculate final min_support
+    min_sup = q25 * entropy_factor * size_factor
     
-    return df, results
+    # 7. Ensure practical bounds
+    min_sup = max(0.01, min(0.3, min_sup))
+    if len(frequencies) > 0:
+        min_sup = min(min_sup, 0.8 * np.max(frequencies))  # Don't exceed 80% of max freq
+    
+    return min_sup
+
+
+
+def get_association_rules(df, min_support):
+    # Preprocess data: Convert item lists to one-hot encoded format
+    te = TransactionEncoder()
+    te_ary = te.fit_transform(df['list_of_goods'])
+    encoded_df = pd.DataFrame(te_ary, columns=te.columns_)
+
+    print(min_support)
+
+    # Generate frequent itemsets with minimum support
+    frequent_itemsets = apriori(
+        encoded_df, 
+        min_support=min_support,  # Adjust based on your data density
+        use_colnames=True,
+        max_len=2
+    )
+
+    if len(frequent_itemsets) > 5:
+        # Extract association rules with LIFT metric
+        rules = association_rules(
+            frequent_itemsets,
+            metric="lift",      # Use lift as primary metric
+            min_threshold=1.0   # Only show rules with lift > 1 (positive correlation)
+        )
+
+        # Remove duplicate suggestions
+        rules['sorted_items'] = rules.apply(
+            lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])), 
+            axis=1
+        )
+        rules = rules.drop_duplicates(subset=['sorted_items'])
+        rules = rules.drop(columns=['sorted_items'])
+
+
+        # Filter and sort relevant columns
+        result = rules[[
+            'antecedents', 
+            'consequents', 
+            'lift',
+            'support',        # Support for full rule (antecedents + consequents)
+            'confidence',
+        ]].sort_values(by=['lift', 'confidence'], ascending=False)
+
+        return result
+
+    return ""
+
+
+
+
