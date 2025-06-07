@@ -316,159 +316,93 @@ def assign_outliers_to_clusters(outliers_df, clustered_df):
 
 from scipy.stats import entropy
 
-ef optimal_min_support(frequencies, n_transactions, cluster_size=None):
+def optimal_min_support(frequencies, n_transactions):
     """
-    Calculates optimal min_support based on item frequency distribution and cluster size
+    Calculates optimal min_support based on item frequency distribution
     
     Parameters:
     frequencies (np.array): Support values for individual items
     n_transactions (int): Total number of transactions
-    cluster_size (int): Size of the cluster (if None, assumes global calculation)
     
     Returns:
     float: Optimal min_support value
     """
     # 1. Calculate frequency entropy
+    # Normalize frequencies to get probability distribution
     freq_sum = frequencies.sum()
     if freq_sum > 0:
         norm_freq = frequencies / freq_sum
         freq_entropy = entropy(norm_freq)
     else:
-        freq_entropy = 1.0
+        freq_entropy = 1.0  # Default value if no frequencies
     
     # 2. Calculate distribution metrics
     gini = 1 - (frequencies ** 2).sum() / (frequencies.sum() ** 2) if len(frequencies) > 0 else 0.5
     cv = np.std(frequencies) / np.mean(frequencies) if len(frequencies) > 0 and np.mean(frequencies) > 0 else 1.0
     
-    # 3. Base support (adjusted for cluster size)
-    if cluster_size is not None:
-        # Adjust base support based on cluster size
-        size_factor = min(1.0, max(0.2, 1000 / cluster_size))
-        q25 = np.quantile(frequencies, 0.25) if len(frequencies) > 0 else 0.05
-        base_support = q25 * size_factor
-    else:
-        base_support = np.quantile(frequencies, 0.25) if len(frequencies) > 0 else 0.05
+    # 3. Base support (25th percentile)
+    q25 = np.quantile(frequencies, 0.25) if len(frequencies) > 0 else 0.05
     
     # 4. Entropy-based adjustment
-    entropy_factor = max(0.5, min(2.0, 1.5 - (freq_entropy / 3)))
+    entropy_factor = max(0.5, min(2.0, 1.5 - (freq_entropy / 3)))  # Normalized entropy adjustment
     
-    # 5. Calculate final min_support
-    min_sup = base_support * entropy_factor
+    # 5. Size-based adjustment
+    size_factor = min(1.0, max(0.2, 1000 / n_transactions))
     
-    # 6. Ensure practical bounds
+    # 6. Calculate final min_support
+    min_sup = q25 * entropy_factor * size_factor
+    
+    # 7. Ensure practical bounds
     min_sup = max(0.01, min(0.3, min_sup))
     if len(frequencies) > 0:
-        min_sup = min(min_sup, 0.8 * np.max(frequencies))
+        min_sup = min(min_sup, 0.8 * np.max(frequencies))  # Don't exceed 80% of max freq
     
     return min_sup
 
 
 
-def get_association_rules(df, min_support, cluster_id=None, cluster_data=None):
-    """
-    Generate association rules for a specific cluster or the entire dataset
-    
-    Parameters:
-    df (pd.DataFrame): DataFrame containing the transactions
-    min_support (float): Minimum support threshold
-    cluster_id (int): Cluster ID to generate rules for (if None, generates global rules)
-    cluster_data (pd.DataFrame): DataFrame containing cluster assignments
-    
-    Returns:
-    pd.DataFrame: Association rules
-    """
-    # Filter data for specific cluster if provided
-    if cluster_id is not None and cluster_data is not None:
-        cluster_customers = cluster_data[cluster_data['cluster'] == cluster_id]['customer_id']
-        df = df[df['customer_id'].isin(cluster_customers)]
-    
-    # Preprocess data
+def get_association_rules(df, min_support):
+    # Preprocess data: Convert item lists to one-hot encoded format
     te = TransactionEncoder()
     te_ary = te.fit_transform(df['list_of_goods'])
     encoded_df = pd.DataFrame(te_ary, columns=te.columns_)
-    
-    # Calculate item frequencies for this cluster/dataset
-    item_frequencies = encoded_df.sum()
-    
-    # Adjust min_support based on cluster size if applicable
-    if cluster_id is not None:
-        cluster_size = len(df)
-        min_support = optimal_min_support(item_frequencies.values, len(df), cluster_size)
-    
-    print(f"Using min_support: {min_support:.4f}")
-    
-    # Generate frequent itemsets
+
+    print(min_support)
+
+    # Generate frequent itemsets with minimum support
     frequent_itemsets = apriori(
-        encoded_df,
-        min_support=min_support,
+        encoded_df, 
+        min_support=min_support,  # Adjust based on your data density
         use_colnames=True,
         max_len=2
     )
-    
+
     if len(frequent_itemsets) > 5:
-        # Generate rules
+        # Extract association rules with LIFT metric
         rules = association_rules(
             frequent_itemsets,
-            metric="lift",
-            min_threshold=1.0
+            metric="lift",      # Use lift as primary metric
+            min_threshold=1.0   # Only show rules with lift > 1 (positive correlation)
         )
-        
+
         # Remove duplicate suggestions
         rules['sorted_items'] = rules.apply(
-            lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])),
+            lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])), 
             axis=1
         )
         rules = rules.drop_duplicates(subset=['sorted_items'])
         rules = rules.drop(columns=['sorted_items'])
-        
-        # Filter out rules with very high support (likely obvious/common combinations)
-        max_support_threshold = 0.8 if cluster_id is None else 0.9
-        rules = rules[rules['support'] < max_support_threshold]
-        
+
+
         # Filter and sort relevant columns
         result = rules[[
-            'antecedents',
-            'consequents',
+            'antecedents', 
+            'consequents', 
             'lift',
-            'support',
+            'support',        # Support for full rule (antecedents + consequents)
             'confidence',
         ]].sort_values(by=['lift', 'confidence'], ascending=False)
-        
-        # Add cluster information if applicable
-        if cluster_id is not None:
-            result['cluster'] = cluster_id
-        
+
         return result
-    
-    return pd.DataFrame()  # Return empty DataFrame if no rules found
 
-
-
-def generate_cluster_specific_rules(basket_df, clustered_df, min_support=0.01):
-    """
-    Generate association rules for each cluster separately
-    
-    Parameters:
-    basket_df (pd.DataFrame): DataFrame containing basket data
-    clustered_df (pd.DataFrame): DataFrame containing cluster assignments
-    min_support (float): Base minimum support threshold
-    
-    Returns:
-    dict: Dictionary containing rules for each cluster
-    """
-    cluster_rules = {}
-    
-    # Get unique clusters
-    clusters = clustered_df['cluster'].unique()
-    
-    for cluster_id in clusters:
-        print(f"\nGenerating rules for cluster {cluster_id}")
-        rules = get_association_rules(basket_df, min_support, cluster_id, clustered_df)
-        if not rules.empty:
-            cluster_rules[cluster_id] = rules
-    
-    return cluster_rules
-
-
-
-
+    return ""

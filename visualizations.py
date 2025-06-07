@@ -1051,54 +1051,70 @@ def plot_umap_2d(info_df_clustered):
 
 
 def plot_cluster_boxplots(info_df_with_cluster):
-    # Select numeric columns (excluding customer_id and cluster)
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+
+    # Select numeric columns (excluding cluster label)
     numeric_cols = info_df_with_cluster.select_dtypes(include=[np.number]).columns.difference(['cluster'])
 
-    # Plot boxplots for each numeric variable grouped by cluster
+    # Set up subplot grid
     n_cols = 4
     n_rows = int(np.ceil(len(numeric_cols) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 4 * n_rows))
     axes = axes.flatten()
 
     for i, col in enumerate(numeric_cols):
-        # Create boxplot with enhanced styling
         box_plot = sns.boxplot(
             data=info_df_with_cluster,
             x='cluster',
             y=col,
             ax=axes[i],
-            palette='Set2',  # Use Set2 to match other visualizations
+            palette='Set2',
             linewidth=1.5,
-            flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='white', markeredgewidth=0.5)
+            flierprops=dict(marker='o', markersize=4, alpha=0.6,
+                            markeredgecolor='white', markeredgewidth=0.5)
         )
         
-        # Customize the plot
+        # Add red line showing overall average
+        overall_mean = info_df_with_cluster[col].mean()
+        axes[i].axhline(
+            y=overall_mean,
+            color='red',
+            linestyle='--',
+            linewidth=1.5,
+            label='Overall Mean'
+        )
+
+        # Set labels and title
         axes[i].set_xlabel('Cluster', fontsize=10, fontweight='bold')
         axes[i].set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
         axes[i].set_title(f'Boxplot of {col.replace("_", " ").title()} by Cluster', 
-                        fontsize=11, fontweight='bold', pad=15)
-        
-        # Make tick labels bold
+                          fontsize=11, fontweight='bold', pad=15)
+
+        # Format ticks
         axes[i].tick_params(axis='x', labelsize=9)
         axes[i].tick_params(axis='y', labelsize=9)
         for tick in axes[i].get_xticklabels():
             tick.set_fontweight('bold')
         for tick in axes[i].get_yticklabels():
             tick.set_fontweight('bold')
-        
-        # Add grid and clean styling
+
+        # Grid and spines
         axes[i].grid(True, alpha=0.3, axis='y')
         axes[i].spines['top'].set_visible(False)
         axes[i].spines['right'].set_visible(False)
         axes[i].spines['left'].set_linewidth(1.5)
         axes[i].spines['bottom'].set_linewidth(1.5)
-        
-        # Set background color to white
         axes[i].set_facecolor('white')
-        
-        # Format x-axis labels as C0, C1, etc.
+
+        # Format x-axis labels as C0, C1, ...
         cluster_labels = [f'C{int(label.get_text())}' for label in axes[i].get_xticklabels()]
         axes[i].set_xticklabels(cluster_labels, fontweight='bold')
+
+        # Add legend only to the first plot
+        if i == 0:
+            axes[i].legend(loc='upper right', fontsize=8)
 
     # Remove unused subplots
     for j in range(len(numeric_cols), len(axes)):
@@ -1106,6 +1122,7 @@ def plot_cluster_boxplots(info_df_with_cluster):
 
     plt.tight_layout()
     plt.show()
+
 
 
 
