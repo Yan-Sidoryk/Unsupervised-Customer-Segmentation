@@ -223,6 +223,31 @@ def spending_visualization(info_df, spend_columns):
     plt.show()
 
 
+def plot_map(df, lat_col='latitude', lon_col='longitude',
+                         hover_name_col='customer_name', zoom=11, 
+                         height=600, width=800, mapbox_style="open-street-map"):
+    
+    # Plot scatter map
+    fig = px.scatter_mapbox(
+        df,
+        lat=lat_col,
+        lon=lon_col,
+        hover_name=hover_name_col,
+        zoom=zoom,
+        height=height,
+        width=width
+    )
+
+    # Remove margins and white background
+    fig.update_layout(
+        mapbox_style=mapbox_style,
+        margin=dict(l=0, r=0, t=0, b=0),  # Removes all margins
+        paper_bgcolor='rgba(0,0,0,0)',     # Transparent background
+        plot_bgcolor='rgba(0,0,0,0)'       # Transparent plot area
+    )
+    
+    return fig
+
 def plot_correlation_heatmap(info_df, columns):
     # Calculate the correlation matrix for the selected columns
     correlation_matrix = info_df[columns].corr()
