@@ -227,7 +227,7 @@ def plot_map(df, lat_col='latitude', lon_col='longitude',
                          hover_name_col='customer_name', zoom=11, 
                          height=600, width=800, mapbox_style="open-street-map"):
     
-    # Plot scatter map
+    # Plot scatter map 
     fig = px.scatter_mapbox(
         df,
         lat=lat_col,
@@ -305,10 +305,10 @@ def dendogram_visualization(info_df, columns):
     # Plot the dendrogram with enhanced styling
     plt.figure(figsize=(14, 8))
 
-    # Create dendrogram with enhanced colors and styling
+    # Create dendrogram with color threshold at distance 2
     dendrogram = sch.dendrogram(linkage_matrix, labels=columns, leaf_rotation=90, 
-                            leaf_font_size=10, color_threshold=0.7*max(linkage_matrix[:,2]),
-                            above_threshold_color='gray')
+                            leaf_font_size=10, color_threshold=2.0,  # Set threshold at distance 2
+                            above_threshold_color='black')
 
     # Get current axes
     ax = plt.gca()
@@ -340,6 +340,9 @@ def dendogram_visualization(info_df, columns):
     # Make x-axis labels more readable
     plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontweight='bold')
 
+    # Add a horizontal line at distance 2 to show the color threshold
+    ax.axhline(y=2.0, color='red', linestyle='--', alpha=0.7, linewidth=2)
+
     plt.tight_layout()
     plt.show()
 
@@ -370,6 +373,51 @@ def plot_top_purchased_items(all_items, n_items=25):
     plt.xlabel('Items', fontsize=12, fontweight='bold')
     plt.ylabel('Count', fontsize=12, fontweight='bold')
     plt.title(f'Top {len(items)} Purchased Items', fontsize=14, fontweight='bold', pad=20)
+
+    # Set x-axis labels
+    plt.xticks(range(len(items)), items, rotation=45, ha='right', fontweight='bold', fontsize=10)
+    plt.yticks(fontweight='bold', fontsize=10)
+
+    # Add grid and clean styling
+    plt.grid(True, alpha=0.3, axis='y')
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Add value labels on bars
+    for bar, count in zip(bars, counts):
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + max(counts) * 0.01,
+                f'{count:,}', ha='center', va='bottom', fontweight='bold', fontsize=9)
+
+    # Set y-axis limits
+    plt.ylim([0, max(counts) * 1.1])
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_least_purchased_items(all_items, n_items=25):
+    # Count the occurrences of each item
+    item_counts = Counter([item for sublist in all_items['all_purchased_items'] for item in sublist])
+
+    # Get the least common items (sorted in ascending order by count)
+    least_items = item_counts.most_common()[:-n_items-1:-1]  # Get last n_items in reverse
+
+    # Separate the items and their counts for plotting
+    items, counts = zip(*least_items)
+    items = [item.replace('_', ' ').title() for item in items]  # Format item names
+    counts = list(counts)
+
+    # Plot the least purchased items with enhanced styling
+    plt.figure(figsize=(15, 6))
+
+    # Create bars with enhanced styling 
+    bars = plt.bar(range(len(items)), counts, color=[0.4, 0.76078431, 0.64705882, 1.0], alpha=0.8, edgecolor='white', linewidth=1.5)
+
+    # Customize the plot
+    plt.xlabel('Items', fontsize=12, fontweight='bold')
+    plt.ylabel('Count', fontsize=12, fontweight='bold')
+    plt.title(f'Least {len(items)} Purchased Items', fontsize=14, fontweight='bold', pad=20)
 
     # Set x-axis labels
     plt.xticks(range(len(items)), items, rotation=45, ha='right', fontweight='bold', fontsize=10)
