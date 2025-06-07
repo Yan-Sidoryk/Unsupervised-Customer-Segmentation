@@ -412,12 +412,12 @@ def plot_least_purchased_items(all_items, n_items=25):
     plt.figure(figsize=(15, 6))
 
     # Create bars with enhanced styling 
-    bars = plt.bar(range(len(items)), counts, color=[0.4, 0.76078431, 0.64705882, 1.0], alpha=0.8, edgecolor='white', linewidth=1.5)
+    bars = plt.bar(range(len(items)), counts, color=[1.0, 0.6, 0.4, 1.0], alpha=0.8, edgecolor='white', linewidth=1.5)
 
     # Customize the plot
     plt.xlabel('Items', fontsize=12, fontweight='bold')
     plt.ylabel('Count', fontsize=12, fontweight='bold')
-    plt.title(f'Least {len(items)} Purchased Items', fontsize=14, fontweight='bold', pad=20)
+    plt.title(f'{len(items)} Least Purchased Items', fontsize=14, fontweight='bold', pad=20)
 
     # Set x-axis labels
     plt.xticks(range(len(items)), items, rotation=45, ha='right', fontweight='bold', fontsize=10)
@@ -445,55 +445,111 @@ def plot_least_purchased_items(all_items, n_items=25):
 
 def plot_pca_explained_variance(info_df_scaled, figsize=(10, 6)):
     
+   # Prepare data (exclude customer_id)
+    pca_data = info_df_scaled.drop(columns=['customer_id'], axis=1)
+    
     # Calculate explained variance for different numbers of components
     explained_variances = []
-    n_components_range = range(1, info_df_scaled.shape[1])  # Up to max features
+    individual_variances = []
+    n_components_range = range(1, pca_data.shape[1] + 1)  # Include all features
 
     for n in n_components_range:
         pca_tmp = PCA(n_components=n)
-        pca_tmp.fit(info_df_scaled.drop(columns=['customer_id'], axis=1))  # Exclude customer_id from PCA
-        explained_variances.append(pca_tmp.explained_variance_ratio_.sum() * 100)  # Convert to percent
+        pca_tmp.fit(pca_data)
+        explained_variances.append(pca_tmp.explained_variance_ratio_.sum() * 100)
+        individual_variances.append(pca_tmp.explained_variance_ratio_[-1] * 100)  # Last component's variance
 
-    # Create the plot
-    fig, ax = plt.subplots(figsize=figsize)
+    # Create subplots
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=figsize)
     
-    # Create line plot with enhanced styling
-    line = ax.plot(n_components_range, explained_variances, marker='o', 
-                   linewidth=2.5, markersize=8, color='#2E86AB', 
-                   markerfacecolor='#2E86AB', markeredgecolor='white', 
-                   markeredgewidth=2, alpha=0.8)
+    # Plot 1: Cumulative Explained Variance
+    ax1.plot(n_components_range, explained_variances, marker='o', 
+             linewidth=2.5, markersize=6, color='#2E86AB', 
+             markerfacecolor='#2E86AB', markeredgecolor='white', 
+             markeredgewidth=1.5)
     
-    # Customize the plot
-    ax.set_xlabel('Number of PCA Components', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Cumulative Explained Variance', fontsize=12, fontweight='bold')
-    ax.set_title('PCA: Explained Variance vs Number of Components', fontsize=14, fontweight='bold', pad=20)
+    # Add reference lines and annotations
+    ax1.axhline(y=80, color='red', linestyle='--', alpha=0.7, label='80% Variance')
+    ax1.axhline(y=90, color='orange', linestyle='--', alpha=0.7, label='90% Variance')
+    ax1.axhline(y=95, color='green', linestyle='--', alpha=0.7, label='95% Variance')
     
-    # Add grid and clean styling
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(0.8)
-    ax.spines['bottom'].set_linewidth(0.8)
+    # Find and annotate key points
+    idx_80 = next((i for i, v in enumerate(explained_variances) if v >= 80), None)
+    idx_90 = next((i for i, v in enumerate(explained_variances) if v >= 90), None)
+    idx_95 = next((i for i, v in enumerate(explained_variances) if v >= 95), None)
     
-    # Add horizontal reference lines
-    ax.axhline(y=80, color='red', linestyle='--', alpha=0.7, 
-               label='80% Variance')
-    ax.axhline(y=95, color='orange', linestyle='--', alpha=0.7, 
-               label='95% Variance')
+    if idx_80: ax1.annotate(f'{idx_80+1} components', xy=(idx_80+1, 80), xytext=(idx_80+3, 75),
+                           arrowprops=dict(arrowstyle='->', color='red', alpha=0.7))
+    if idx_90: ax1.annotate(f'{idx_90+1} components', xy=(idx_90+1, 90), xytext=(idx_90+3, 85),
+                           arrowprops=dict(arrowstyle='->', color='orange', alpha=0.7))
     
+    ax1.set_xlabel('Number of PCA Components', fontweight='bold')
+    ax1.set_ylabel('Cumulative Explained Variance (%)', fontweight='bold')
+    ax1.set_title('Cumulative Explained Variance', fontweight='bold')
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    ax1.legend(loc='lower right')
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}%'))
     
-    # Set axis limits
-    ax.set_xlim([0.5, max(n_components_range) + 0.5])
-    ax.set_ylim([0, 105])
+    # Plot 2: Scree Plot (Individual Component Variance)
+    ax2.plot(n_components_range, individual_variances, marker='o', 
+             linewidth=2.5, markersize=6, color='#A23B72',
+             markerfacecolor='#A23B72', markeredgecolor='white', 
+             markeredgewidth=1.5)
+    ax2.set_xlabel('Component Number', fontweight='bold')
+    ax2.set_ylabel('Individual Explained Variance (%)', fontweight='bold')
+    ax2.set_title('Scree Plot (Individual Components)', fontweight='bold')
+    ax2.grid(True, alpha=0.3, linestyle='--')
+    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}%'))
     
-    # Add legend
-    ax.legend(loc='lower right', frameon=True, fancybox=True, shadow=True)
+    # Plot 3: Elbow Detection (Rate of Change)
+    rate_of_change = [explained_variances[i] - explained_variances[i-1] 
+                     for i in range(1, len(explained_variances))]
     
-    # Format y-axis to show percentage
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}%'))
+    ax3.plot(range(2, len(n_components_range)+1), rate_of_change, marker='s', 
+             linewidth=2.5, markersize=6, color='#F18F01',
+             markerfacecolor='#F18F01', markeredgecolor='white', 
+             markeredgewidth=1.5)
+    ax3.set_xlabel('Number of PCA Components', fontweight='bold')
+    ax3.set_ylabel('Marginal Variance Explained (%)', fontweight='bold')
+    ax3.set_title('Marginal Variance Added per Component', fontweight='bold')
+    ax3.grid(True, alpha=0.3, linestyle='--')
+    ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}%'))
+    
+    # Plot 4: Kaiser Criterion Visualization
+    pca_full = PCA()
+    pca_full.fit(pca_data)
+    eigenvalues = pca_full.explained_variance_
+    
+    ax4.bar(range(1, len(eigenvalues)+1), eigenvalues, 
+            color=['#C73E1D' if ev >= 1 else 'lightgray' for ev in eigenvalues],
+            alpha=0.7, edgecolor='black', linewidth=0.5)
+    ax4.axhline(y=1, color='red', linestyle='--', alpha=0.8, linewidth=2, label='Kaiser Criterion (λ=1)')
+    ax4.set_xlabel('Component Number', fontweight='bold')
+    ax4.set_ylabel('Eigenvalue', fontweight='bold')
+    ax4.set_title('Kaiser Criterion (Eigenvalues > 1)', fontweight='bold')
+    ax4.grid(True, alpha=0.3, linestyle='--', axis='y')
+    ax4.legend()
+    
+    # Style all subplots
+    for ax in [ax1, ax2, ax3, ax4]:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(0.8)
+        ax.spines['bottom'].set_linewidth(0.8)
     
     plt.tight_layout()
     plt.show()
+    
+    # Print recommendations
+    print("PCA Component Selection Recommendations:")
+    print("="*50)
+    kaiser_components = sum(1 for ev in eigenvalues if ev >= 1)
+    print(f"Kaiser Criterion: {kaiser_components} components (eigenvalues > 1)")
+    if idx_80: print(f"80% Variance: {idx_80+1} components")
+    if idx_90: print(f"90% Variance: {idx_90+1} components")
+    if idx_95: print(f"95% Variance: {idx_95+1} components")
+    
+    return None 
 
 
 

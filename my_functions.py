@@ -144,12 +144,12 @@ def extra_preprocessing(data, k=5):
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
-    info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
-    # info_df.drop(columns=['lifetime_spend_groceries',
-    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-    #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
+    # info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
+    #info_df.drop(columns=['lifetime_spend_groceries',
+     #   'lifetime_spend_electronics', 'lifetime_spend_vegetables',
+      #   'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
+      #   'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
+      #  'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
 
     # Separate categorical columns
@@ -253,8 +253,6 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
             )
 
     return info_df_clustered
-
-
 
 
 
