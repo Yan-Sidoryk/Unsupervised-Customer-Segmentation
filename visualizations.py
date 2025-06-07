@@ -383,55 +383,60 @@ def plot_top_purchased_items(all_items, n_items=25, items_type='most'):
 
 # ---------- Model Visualizations ---------- #
 
-def plot_pca_explained_variance(info_df_scaled, figsize=(10, 6)):
+def plot_pca_explained_variance(info_df_scaled):
     
     # Calculate explained variance for different numbers of components
     explained_variances = []
+    individual_variances = []
     n_components_range = range(1, info_df_scaled.shape[1])  # Up to max features
 
     for n in n_components_range:
         pca_tmp = PCA(n_components=n)
         pca_tmp.fit(info_df_scaled.drop(columns=['customer_id'], axis=1))  # Exclude customer_id from PCA
         explained_variances.append(pca_tmp.explained_variance_ratio_.sum() * 100)  # Convert to percent
+        individual_variances.append(pca_tmp.explained_variance_ratio_ * 100)  # Individual component variances
 
-    # Create the plot
-    fig, ax = plt.subplots(figsize=figsize)
-    
-    # Create line plot with enhanced styling
-    line = ax.plot(n_components_range, explained_variances, marker='o', 
-                   linewidth=2.5, markersize=8, color='#2E86AB', 
-                   markerfacecolor='#2E86AB', markeredgecolor='white', 
-                   markeredgewidth=2, alpha=0.8)
-    
-    # Customize the plot
-    ax.set_xlabel('Number of PCA Components', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Cumulative Explained Variance', fontsize=12, fontweight='bold')
-    ax.set_title('PCA: Explained Variance vs Number of Components', fontsize=14, fontweight='bold', pad=20)
-    
-    # Add grid and clean styling
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(0.8)
-    ax.spines['bottom'].set_linewidth(0.8)
-    
-    # Add horizontal reference lines
-    ax.axhline(y=80, color='red', linestyle='--', alpha=0.7, 
-               label='80% Variance')
-    ax.axhline(y=95, color='orange', linestyle='--', alpha=0.7, 
-               label='95% Variance')
-    
-    
-    # Set axis limits
-    ax.set_xlim([0.5, max(n_components_range) + 0.5])
-    ax.set_ylim([0, 105])
-    
-    # Add legend
-    ax.legend(loc='lower right', frameon=True, fancybox=True, shadow=True)
-    
-    # Format y-axis to show percentage
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}%'))
-    
+    # Create a comprehensive figure with multiple subplots
+    fig = plt.figure(figsize=(15, 6))
+
+    # 1. Original Cumulative Explained Variance Plot
+    ax1 = plt.subplot(1, 2, 1)
+    line = ax1.plot(n_components_range, explained_variances, marker='o', 
+                linewidth=2.5, markersize=8, color='#2E86AB', 
+                markerfacecolor='#2E86AB', markeredgecolor='white', 
+                markeredgewidth=2, alpha=0.8)
+
+    ax1.set_xlabel('Number of PCA Components', fontsize=10, fontweight='bold')
+    ax1.set_ylabel('Cumulative Explained Variance', fontsize=10, fontweight='bold')
+    ax1.set_title('Cumulative Explained Variance', fontsize=12, fontweight='bold')
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    ax1.axhline(y=80, color='red', linestyle='--', alpha=0.7, label='80%')
+    ax1.axhline(y=95, color='orange', linestyle='--', alpha=0.7, label='95%')
+    ax1.legend(loc='lower right')
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.0f}%'))
+
+    # 2. Scree Plot - Individual Component Variance
+    ax2 = plt.subplot(1, 2, 2)
+    # Get individual variances for the full PCA
+    pca_full = PCA()
+    pca_full.fit(info_df_scaled.drop(columns=['customer_id'], axis=1))
+    individual_var_full = pca_full.explained_variance_ratio_ * 100
+
+    ax2.plot(range(1, len(individual_var_full) + 1), individual_var_full, 
+            marker='o', color='#A23B72', linewidth=2, markersize=6)
+    ax2.set_xlabel('Component Number', fontsize=10, fontweight='bold')
+    ax2.set_ylabel('Individual Explained Variance', fontsize=10, fontweight='bold')
+    ax2.set_title('Scree Plot - Individual Component Variance', fontsize=12, fontweight='bold')
+    ax2.grid(True, alpha=0.3, linestyle='--')
+    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}%'))
+
+    # Style both subplots
+    for ax in [ax1, ax2]:
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(0.8)
+        ax.spines['bottom'].set_linewidth(0.8)
+
     plt.tight_layout()
     plt.show()
 
@@ -936,12 +941,11 @@ def plot_umap_2d(info_df_clustered):
 
 
 def plot_clusters_3d(info_df_clustered, method):
-    random_state = 42
 
     method = method.upper()
     if method == 'UMAP':
         # Apply UMAP for 3D dimensionality reduction
-        umap_model_3d = UMAP(n_components=3, random_state=random_state)
+        umap_model_3d = UMAP(n_components=3, random_state=42)
         result_3d = umap_model_3d.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1))
 
     elif method == 'PCA':
