@@ -11,13 +11,15 @@ import plotly.express as px
 
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import RobustScaler, OneHotEncoder
-from sklearn.metrics import silhouette_score, silhouette_samples
+from sklearn.metrics import silhouette_score, silhouette_samplesm
+from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import NearestNeighbors
 
+
 from sklearn.cluster import KMeans, DBSCAN, MeanShift
-import scipy.cluster.hierarchy as sch
 from sklearn.decomposition import PCA
 from minisom import MiniSom
+import scipy.cluster.hierarchy as sch
 
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules
@@ -292,6 +294,23 @@ def generate_cluster_names(cluster_profiles, z_threshold, max_features=4):
         labels[i] = f"{high_label} | {low_label}"
     
     return labels
+
+
+
+def assign_outliers_to_clusters(outliers_df, clustered_df):
+    feature_columns = [col for col in clustered_df.columns if col not in ['cluster', 'customer_id']]
+    
+    # Calculate centroids
+    centroids = clustered_df.groupby('cluster')[feature_columns].mean()
+    
+    # Calculate distances using sklearn
+    distances = euclidean_distances(outliers_df[feature_columns], centroids)
+
+    # Assign to nearest cluster
+    result_df = outliers_df.copy()
+    result_df['cluster'] = centroids.index[np.argmin(distances, axis=1)]
+
+    return result_df
 
 
 
