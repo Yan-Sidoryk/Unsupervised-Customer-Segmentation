@@ -278,13 +278,40 @@ def k_distance_graph(data, k):
     # Sort the distances in ascending order
     distances = np.sort(distances[:, k])  # Skip distance to self
 
-    # Create the k-distance graph
+    # Enhanced color from the professional palette
+    line_color = plt.cm.Set2(0.2)  # Use a nice color from the Set2 palette
+
+    # Create the k-distance graph with enhanced styling
     plt.figure(figsize=(10, 6))
-    plt.plot(distances)
-    plt.xlabel('Points sorted by distance')
-    plt.ylabel(f'Distance to {k}th nearest neighbor')
-    plt.title(f'K-Distance Graph (k={k})')
-    plt.grid(True)
+
+    # Plot with enhanced line styling
+    plt.plot(distances, color=line_color, linewidth=3, alpha=0.8)
+
+    # Customize the plot
+    plt.xlabel('Points Sorted by Distance', fontsize=12, fontweight='bold')
+    plt.ylabel(f'Distance to {k}th Nearest Neighbor', fontsize=12, fontweight='bold')
+    plt.title(f'K-Distance Graph (k={k})', fontsize=14, fontweight='bold', pad=20)
+
+    # Get current axes
+    ax = plt.gca()
+
+    # Make tick labels bold
+    ax.tick_params(axis='x', labelsize=10)
+    ax.tick_params(axis='y', labelsize=10)
+    for label in ax.get_xticklabels():
+        label.set_fontweight('bold')
+    for label in ax.get_yticklabels():
+        label.set_fontweight('bold')
+
+    # Add grid and clean styling
+    ax.grid(True, alpha=0.3, axis='both')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(1.5)
+    ax.spines['bottom'].set_linewidth(1.5)
+
+    # Set background color to white for better contrast
+    ax.set_facecolor('white')
 
     plt.tight_layout()
     plt.show()

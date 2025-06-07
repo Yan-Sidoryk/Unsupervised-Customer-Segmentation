@@ -5,17 +5,370 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+import plotly.graph_objects as go
 
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+import scipy.cluster.hierarchy as sch
 
-import plotly.graph_objects as go
-import plotly.express as px
+from umap import UMAP
+
+from collections import Counter
 
 
 
-# ---------- Visualizations ---------- #
+
+# ---------- Data Visualizations ---------- #
+
+def general_visualization(info_df):
+
+    # Define the columns to plot
+    columns = ['customer_gender', 'kids_home', 'teens_home', 'number_complaints', 
+            'distinct_stores_visited', 'degree_level', 'typical_hour'] 
+
+    # Enhanced color palette
+    color_palette = plt.cm.Set2(np.linspace(0, 1, 8))[::-1]  # Reverse the order for better visibility
+
+    # Create a grid of subplots
+    fig, axes = plt.subplots(4, 3, figsize=(18, 12))
+    axes = axes.flatten()  # Flatten the axes array for easy iteration
+
+    # Plot general bar plots for each column in the list
+    for i, col in enumerate(columns):
+        # Get value counts for proper ordering and colors
+        if col == 'degree_level':
+            # Custom order for degree levels
+            degree_order = ['None', 'Bsc', 'Msc', 'Phd']
+            value_counts = info_df[col].value_counts().reindex(degree_order).fillna(0).astype(int)
+        else:
+            value_counts = info_df[col].value_counts().sort_index()
+        
+        # Create bars with enhanced styling
+        bars = axes[i].bar(range(len(value_counts)), value_counts.values, 
+                        color=color_palette[i % len(color_palette)], alpha=0.8, 
+                        edgecolor='white', linewidth=1.5)
+        
+        # Customize the plot
+        axes[i].set_xlabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
+        axes[i].set_ylabel('Count', fontsize=10, fontweight='bold')
+        axes[i].set_title(f'Distribution of {col.replace("_", " ").title()}', 
+                        fontsize=11, fontweight='bold', pad=15)
+        
+        # Set x-axis labels
+        axes[i].set_xticks(range(len(value_counts)))
+        axes[i].set_xticklabels(value_counts.index, fontweight='bold')
+        
+        # Add grid and clean styling
+        axes[i].grid(True, alpha=0.3, axis='y')
+        axes[i].spines['top'].set_visible(False)
+        axes[i].spines['right'].set_visible(False)
+        
+        # Add value labels on bars
+        for bar, count in zip(bars, value_counts.values):
+            height = bar.get_height()
+            if col != 'typical_hour':   # Skip value labels for 'typical_hour'
+                axes[i].text(bar.get_x() + bar.get_width()/2., height + max(value_counts.values) * 0.01,
+                            f'{count:,}', ha='center', va='bottom', fontweight='bold', fontsize=9, rotation=0)
+        
+        # Set y-axis limits
+        axes[i].set_ylim([0, max(value_counts.values) * 1.1])
+
+    # Make female bar pink and male bar blue (keeping your specific styling)
+    bars = axes[0].patches  
+    bars[0].set_color('pink')  # Female
+    bars[0].set_alpha(0.8)
+    bars[0].set_edgecolor('white')
+    bars[0].set_linewidth(1.5)
+    bars[1].set_color([0.55294118, 0.62745098, 0.79607843, 1])  # Male
+    bars[1].set_alpha(0.8)
+    bars[1].set_edgecolor('white')
+    bars[1].set_linewidth(1.5)
+
+    # Plot time preferences separately with enhanced styling
+    time_columns = ['morning_shopper', 'afternoon_shopper', 'evening_shopper']
+    time_preferences = info_df[time_columns].sum()
+
+    bars = axes[7].bar(range(len(time_preferences)), time_preferences.values, 
+                    color=color_palette[7 % len(color_palette)], alpha=0.8, 
+                    edgecolor='white', linewidth=1.5)
+
+    axes[7].set_xlabel('Typical Shopping Time', fontsize=10, fontweight='bold')
+    axes[7].set_ylabel('Count', fontsize=10, fontweight='bold')
+    axes[7].set_title('Shopping Time Preferences', fontsize=11, fontweight='bold', pad=15)
+    axes[7].set_xticks(range(len(time_preferences)))
+    axes[7].set_xticklabels([col.replace('_shopper', '').replace('_', ' ').title() 
+                            for col in time_columns], fontweight='bold')
+
+    # Add grid and clean styling
+    axes[7].grid(True, alpha=0.3, axis='y')
+    axes[7].spines['top'].set_visible(False)
+    axes[7].spines['right'].set_visible(False)
+
+    # Add value labels on bars
+    for bar, count in zip(bars, time_preferences.values):
+        height = bar.get_height()
+        axes[7].text(bar.get_x() + bar.get_width()/2., height + max(time_preferences.values) * 0.01,
+                    f'{count:,}', ha='center', va='bottom', fontweight='bold', fontsize=9)
+
+    axes[7].set_ylim([0, max(time_preferences.values) * 1.1])
+
+    # Plot ages with bins - enhanced histogram styling
+    n, bins, patches = axes[8].hist(info_df['age'], bins=range(21, 86, 3), 
+                                color=color_palette[0], alpha=0.8, 
+                                edgecolor='white', linewidth=1.5)
+
+    axes[8].set_xlabel('Age', fontsize=10, fontweight='bold')
+    axes[8].set_ylabel('Count', fontsize=10, fontweight='bold')
+    axes[8].set_title('Distribution of Age', fontsize=11, fontweight='bold', pad=15)
+    axes[8].set_xticklabels(range(21, 86, 5), fontsize=9, fontweight='bold')
+    axes[8].grid(True, alpha=0.3, axis='y')
+    axes[8].spines['top'].set_visible(False)
+    axes[8].spines['right'].set_visible(False)
+
+    # Plot customer_for - enhanced histogram styling
+    n, bins, patches = axes[9].hist(info_df['customer_for'], bins=15, 
+                                color=color_palette[1], alpha=0.8, 
+                                edgecolor='white', linewidth=1.5)
+
+    axes[9].set_xlabel('Years as Customer', fontsize=10, fontweight='bold')
+    axes[9].set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    axes[9].set_title('Distribution of Customer Tenure', fontsize=11, fontweight='bold', pad=15)
+    axes[9].set_xticklabels(axes[9].get_xticklabels(), fontsize=9, fontweight='bold')
+    axes[9].grid(True, alpha=0.3, axis='y')
+    axes[9].spines['top'].set_visible(False)
+    axes[9].spines['right'].set_visible(False)
+
+    # Plot the pie chart of loyalty card distribution with enhanced styling
+    loyalty_counts = info_df['loyalty_card'].map({1: 'Yes', 0: 'No'}).value_counts()
+    wedges, texts, autotexts = axes[10].pie(loyalty_counts.values, labels=loyalty_counts.index, 
+                                        autopct='%1.1f%%', startangle=90, 
+                                        colors=['darkseagreen', 'tomato'],
+                                        wedgeprops=dict(edgecolor='white', linewidth=2))
+
+    axes[10].set_title('Loyalty Card Distribution', fontsize=11, fontweight='bold', pad=15)
+
+    # Enhance pie chart text
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontweight('bold')
+        autotext.set_fontsize(10)
+
+    for text in texts:
+        text.set_fontweight('bold')
+        text.set_fontsize(10)
+
+    # Enhanced histogram for promotion percentage
+    n, bins, patches = axes[11].hist(info_df['percentage_of_products_bought_promotion'], 
+                                    bins=30, color=color_palette[2], alpha=0.8, 
+                                    edgecolor='white', linewidth=1.5)
+
+    axes[11].set_xlabel('Percentage of Products Bought on Promotion', fontsize=10, fontweight='bold')
+    axes[11].set_ylabel('Frequency', fontsize=10, fontweight='bold')
+    axes[11].set_title('Distribution of Promotion Purchase Percentage', 
+                    fontsize=11, fontweight='bold', pad=15)
+    axes[11].grid(True, alpha=0.3, axis='y')
+    axes[11].spines['top'].set_visible(False)
+    axes[11].spines['right'].set_visible(False)
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+
+
+def spending_visualization(info_df, spend_columns):
+    # Enhanced color palette
+    color_palette = plt.cm.Set2(np.linspace(0, 1, len(spend_columns)))[::-1]  # Reverse the order for better visibility
+
+    # Create a grid of subplots
+    n_cols = 3  # Set the number of columns in the grid
+    n_rows = (len(spend_columns) + n_cols - 1) // n_cols  # Calculate the number of rows
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 10))  
+    axes = axes.flatten() 
+
+    # Plot each column in a subplot with enhanced styling
+    for i, col in enumerate(spend_columns):
+        # Create KDE plot with enhanced styling
+        sns.kdeplot(data=info_df, x=col, ax=axes[i], 
+                    color=color_palette[i], linewidth=3, alpha=0.8, fill=True)
+                    # fillalpha=0.3)
+        
+        # Customize the plot
+        axes[i].set_xlabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
+        axes[i].set_ylabel('Density', fontsize=10, fontweight='bold')
+        axes[i].set_title(f'Distribution of {col.replace("_", " ").title()}', 
+                        fontsize=11, fontweight='bold', pad=15)
+        
+        # Add grid and clean styling
+        axes[i].grid(True, alpha=0.3, axis='y')
+        axes[i].spines['top'].set_visible(False)
+        axes[i].spines['right'].set_visible(False)
+        
+        # Make x-axis labels bold and rotate
+        axes[i].tick_params(axis='x', rotation=45, labelsize=9)
+        axes[i].tick_params(axis='y', labelsize=9)
+        # Set font weight for tick labels
+        for label in axes[i].get_xticklabels():
+            label.set_fontweight('bold')
+        for label in axes[i].get_yticklabels():
+            label.set_fontweight('bold')
+
+    # Remove any unused subplots
+    for j in range(len(spend_columns), len(axes)):
+        fig.delaxes(axes[j])
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_correlation_heatmap(info_df, columns):
+    # Calculate the correlation matrix for the selected columns
+    correlation_matrix = info_df[columns].corr()
+
+    # Create a mask to remove duplicate correlations but keep the diagonal
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool), k=1)
+
+    # Plot the heatmap with enhanced styling
+    plt.figure(figsize=(16, 13))
+
+    # Create heatmap with enhanced styling
+    ax = sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0, fmt='.2f', 
+                    mask=mask, square=True, linewidths=1, linecolor='white',
+                    annot_kws={'fontsize': 10, 'fontweight': 'bold'},
+                    cbar_kws={'shrink': 0.8, 'aspect': 30})
+
+    # Customize the plot with consistent styling
+    plt.title('Correlation Heatmap of Numeric Customer Features', 
+            fontsize=14, fontweight='bold', pad=20)
+
+    # Style the axes
+    ax.set_xlabel('Features', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Features', fontsize=12, fontweight='bold')
+
+    # Make tick labels bold and improve readability
+    ax.tick_params(axis='x', labelsize=10, rotation=90)
+    ax.tick_params(axis='y', labelsize=10, rotation=0)
+    ax.set_xticklabels(ax.get_xticklabels(), fontweight='bold')
+    ax.set_yticklabels(ax.get_yticklabels(), fontweight='bold')
+
+    # Clean up the spines (though they're mostly hidden by the heatmap)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    # Enhance colorbar
+    cbar = ax.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=10)
+    cbar.set_label('Correlation Coefficient', fontsize=11, fontweight='bold', rotation=270, labelpad=20)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def dendogram_visualization(info_df, columns):
+    # Calculate the correlation matrix for the selected columns
+    correlation_matrix = info_df[columns].corr()
+
+    # Convert the correlation matrix to a distance matrix
+    distance_matrix = 1 - correlation_matrix
+
+    # Perform hierarchical clustering
+    linkage_matrix = sch.linkage(distance_matrix, method='ward')
+
+    # Plot the dendrogram with enhanced styling
+    plt.figure(figsize=(14, 8))
+
+    # Create dendrogram with enhanced colors and styling
+    dendrogram = sch.dendrogram(linkage_matrix, labels=columns, leaf_rotation=90, 
+                            leaf_font_size=10, color_threshold=0.7*max(linkage_matrix[:,2]),
+                            above_threshold_color='gray')
+
+    # Get current axes
+    ax = plt.gca()
+
+    # Customize the plot with consistent styling
+    plt.title('Dendrogram of Numeric Customer Features', 
+            fontsize=14, fontweight='bold', pad=20)
+    plt.xlabel('Features', fontsize=12, fontweight='bold')
+    plt.ylabel('Distance', fontsize=12, fontweight='bold')
+
+    # Set tick label size
+    ax.tick_params(axis='x', labelsize=10)
+    ax.tick_params(axis='y', labelsize=10)
+    # Make tick labels bold
+    plt.setp(ax.get_xticklabels(), fontweight='bold')
+    plt.setp(ax.get_yticklabels(), fontweight='bold')
+
+    # Add grid and clean styling
+    ax.grid(True, alpha=0.3, axis='y')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(1.5)
+    ax.spines['bottom'].set_linewidth(1.5)
+
+    # Enhance the dendrogram lines
+    for line in ax.get_lines():
+        line.set_linewidth(2)
+
+    # Make x-axis labels more readable
+    plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontweight='bold')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_top_purchased_items(all_items, n_items=25):
+    # Count the occurrences of each item
+    item_counts = Counter([item for sublist in all_items['all_purchased_items'] for item in sublist])
+
+    # Get the top most common items
+    top_items = item_counts.most_common(n_items)
+
+    # Separate the items and their counts for plotting
+    items, counts = zip(*top_items)
+    items = [item.replace('_', ' ').title() for item in items]  # Format item names
+    counts = list(counts)
+
+    # Enhanced color palette
+    # colors = plt.cm.Set2(np.linspace(0, 1, len(items)))[::-1]  # Reverse the order for better visibility
+
+    # Plot the top items with enhanced styling
+    plt.figure(figsize=(15, 6))
+
+    # Create bars with enhanced styling
+    bars = plt.bar(range(len(items)), counts, color=[0.4, 0.76078431, 0.64705882, 1.0], alpha=0.8, 
+                edgecolor='white', linewidth=1.5)
+
+    # Customize the plot
+    plt.xlabel('Items', fontsize=12, fontweight='bold')
+    plt.ylabel('Count', fontsize=12, fontweight='bold')
+    plt.title(f'Top {len(items)} Purchased Items', fontsize=14, fontweight='bold', pad=20)
+
+    # Set x-axis labels
+    plt.xticks(range(len(items)), items, rotation=45, ha='right', fontweight='bold', fontsize=10)
+    plt.yticks(fontweight='bold', fontsize=10)
+
+    # Add grid and clean styling
+    plt.grid(True, alpha=0.3, axis='y')
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Add value labels on bars
+    for bar, count in zip(bars, counts):
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + max(counts) * 0.01,
+                f'{count:,}', ha='center', va='bottom', fontweight='bold', fontsize=9)
+
+    # Set y-axis limits
+    plt.ylim([0, max(counts) * 1.1])
+
+    plt.tight_layout()
+    plt.show()
+
+# ---------- Model Visualizations ---------- #
 
 def plot_pca_explained_variance(info_df_scaled, figsize=(10, 6)):
     
@@ -146,8 +499,8 @@ def plot_elbow_and_silhouette(info_df_scaled, max_k=10, step=1):
     fig, ax1 = plt.subplots(figsize=(12, 6))
 
     # Enhanced styling colors
-    inertia_color = '#6e80a9'
-    silhouette_color = '#86b637'
+    inertia_color = [0.55294118, 0.62745098, 0.79607843, 1.0]  # Soft blue
+    silhouette_color = [0.65098039, 0.84705882, 0.32941176, 1.0]  # Soft green
 
     # Plot 1: Elbow Method on the left y-axis
     ax1.set_xlabel('Number of Clusters (k)', fontsize=12, fontweight='bold')
@@ -379,7 +732,7 @@ def plot_feature_importance(df, cluster_col='cluster'):
     fig, ax = plt.subplots(figsize=(12, 8))
     
     # Create horizontal bar plot
-    bars = ax.barh(range(len(importance_series)), importance_series.values, color='#DBB714',
+    bars = ax.barh(range(len(importance_series)), importance_series.values, color=[1.0, 0.85098039, 0.18431373, 1.0],  # Soft yellow
                     alpha=0.8, edgecolor='white', linewidth=1)
     
     # Customize the plot
@@ -421,6 +774,7 @@ def plot_feature_importance(df, cluster_col='cluster'):
 
 
 def plot_clusters_map(info_df, cluster_col='cluster'):
+
     # Get unique clusters and colors
     unique_clusters = sorted(info_df['cluster'].unique())
     colors = px.colors.qualitative.G10
@@ -500,3 +854,134 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
 
     # Show the map
     fig.show()
+
+
+
+# ---------- After Clustering Visualizations ---------- #
+
+def plot_umap_2d(info_df_clustered):
+
+    # Apply UMAP for dimensionality reduction
+    umap_model = UMAP(n_components=2, random_state=42)
+    umap_result = umap_model.fit_transform(info_df_clustered.drop(columns=['cluster'] , axis=1))
+
+    # Create the visualization with enhanced styling
+    plt.figure(figsize=(10, 8))
+
+    # Create scatter plot with enhanced styling
+    scatter = sns.scatterplot(
+        x=umap_result[:, 0], 
+        y=umap_result[:, 1], 
+        hue=info_df_clustered['cluster'], 
+        palette='Set2',
+        alpha=0.8,
+        s=80,
+        edgecolors='white',
+        linewidth=0.5
+    )
+
+    # Get current axes
+    ax = plt.gca()
+
+    # Customize the plot with consistent styling
+    plt.title('UMAP Projection of Customer Segments', fontsize=14, fontweight='bold', pad=20)
+    plt.xlabel('UMAP Dimension 1', fontsize=12, fontweight='bold')
+    plt.ylabel('UMAP Dimension 2', fontsize=12, fontweight='bold')
+
+    # Make tick labels bold
+    ax.tick_params(axis='x', labelsize=10)
+    ax.tick_params(axis='y', labelsize=10)
+    for label in ax.get_xticklabels():
+        label.set_fontweight('bold')
+    for label in ax.get_yticklabels():
+        label.set_fontweight('bold')
+
+    # Improve legend with bold styling
+    legend = plt.legend(title='Cluster', title_fontsize=12, fontsize=10, 
+                    frameon=True, fancybox=True, shadow=True)
+    legend.get_title().set_fontweight('bold')
+    for text in legend.get_texts():
+        text.set_fontweight('bold')
+
+    # Add grid and clean styling
+    ax.grid(True, alpha=0.3, axis='both')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(1.5)
+    ax.spines['bottom'].set_linewidth(1.5)
+
+    # Set background color to white for better contrast
+    ax.set_facecolor('white')
+
+    # Tight layout
+    plt.tight_layout()
+    
+    # Show the plot
+    plt.show()
+
+
+
+def plot_cluster_boxplots(info_df_with_cluster):
+    # Select numeric columns (excluding customer_id and cluster)
+    numeric_cols = info_df_with_cluster.select_dtypes(include=[np.number]).columns.difference(['cluster'])
+
+    # Plot boxplots for each numeric variable grouped by cluster
+    n_cols = 4
+    n_rows = int(np.ceil(len(numeric_cols) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 4 * n_rows))
+    axes = axes.flatten()
+
+    for i, col in enumerate(numeric_cols):
+        # Create boxplot with enhanced styling
+        box_plot = sns.boxplot(
+            data=info_df_with_cluster,
+            x='cluster',
+            y=col,
+            ax=axes[i],
+            palette='Set2',  # Use Set2 to match other visualizations
+            linewidth=1.5,
+            flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='white', markeredgewidth=0.5)
+        )
+        
+        # Customize the plot
+        axes[i].set_xlabel('Cluster', fontsize=10, fontweight='bold')
+        axes[i].set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
+        axes[i].set_title(f'Boxplot of {col.replace("_", " ").title()} by Cluster', 
+                        fontsize=11, fontweight='bold', pad=15)
+        
+        # Make tick labels bold
+        axes[i].tick_params(axis='x', labelsize=9)
+        axes[i].tick_params(axis='y', labelsize=9)
+        for tick in axes[i].get_xticklabels():
+            tick.set_fontweight('bold')
+        for tick in axes[i].get_yticklabels():
+            tick.set_fontweight('bold')
+        
+        # Add grid and clean styling
+        axes[i].grid(True, alpha=0.3, axis='y')
+        axes[i].spines['top'].set_visible(False)
+        axes[i].spines['right'].set_visible(False)
+        axes[i].spines['left'].set_linewidth(1.5)
+        axes[i].spines['bottom'].set_linewidth(1.5)
+        
+        # Set background color to white
+        axes[i].set_facecolor('white')
+        
+        # Format x-axis labels as C0, C1, etc.
+        cluster_labels = [f'C{int(label.get_text())}' for label in axes[i].get_xticklabels()]
+        axes[i].set_xticklabels(cluster_labels, fontweight='bold')
+
+    # Remove unused subplots
+    for j in range(len(numeric_cols), len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
+

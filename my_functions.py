@@ -181,7 +181,7 @@ def extra_preprocessing(data, k=5):
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
     info_df_num_scaled['spend_vegetables_percent'] = info_df_num_scaled['spend_vegetables_percent'] / 2
-    # info_df_num_scaled['total_children'] = info_df_num_scaled['total_children'] * 2
+
 
     # Combine all features
     info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
