@@ -1,12 +1,17 @@
 import numpy as np
 import pandas as pd
+
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering, MeanShift
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 from sklearn.neighbors import NearestNeighbors
 from minisom import MiniSom
+
 from collections import Counter
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -146,28 +151,46 @@ def plot_results(data, results):
     n_plots = len(results)
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     axes = axes.flatten()
-    
+
     for i, (name, labels) in enumerate(results.items()):
         if i >= len(axes):
             break
             
         ax = axes[i]
-        scatter = ax.scatter(data[:, 0], data[:, 1], c=labels, cmap='tab10', alpha=0.7, s=30)
+        
+        # Use the first two PCA components for plotting
+        # data = data[['pca1', 'pca2']].values
+
+        # Enhanced scatter plot styling
+        scatter = ax.scatter(data[:, 0], data[:, 1], c=labels, cmap='Set2', 
+                            alpha=0.8, s=35, edgecolors='white', linewidths=0.5)
         
         n_clusters = len(np.unique(labels))
-        noise_info = f" (Noise: {np.sum(labels == -1)})" if -1 in labels else ""
+        noise_info = f" (Noise: {np.sum(labels == -1):,})" if -1 in labels else ""
         
-        # Add cluster sizes to title
+        # Add cluster sizes to title with enhanced formatting
         title = f'{name}\nClusters: {n_clusters}{noise_info}'
         
-        ax.set_title(title, fontsize=10)
-        ax.set_xlabel('PC1')
-        ax.set_ylabel('PC2')
-    
+        # Enhanced typography and styling
+        ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+        ax.set_xlabel('PC1', fontsize=12, fontweight='bold')
+        ax.set_ylabel('PC2', fontsize=12, fontweight='bold')
+        
+        # Clean grid and spines
+        ax.grid(True, alpha=0.3)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        # Enhanced tick styling
+        ax.tick_params(axis='both', labelsize=10, colors='#333333')
+
+
     # Hide unused subplots
     for i in range(n_plots, len(axes)):
         axes[i].set_visible(False)
-    
+
+    # Enhanced main title
+    plt.suptitle('Clustering Algorithm Results Comparison', fontsize=16, fontweight='bold', y=0.98)
     plt.tight_layout()
     plt.show()
 
@@ -178,10 +201,13 @@ def plot_cluster_sizes(results):
     n_algorithms = len(results)
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     axes = axes.flatten()
-    
-    colors = plt.cm.Set3(np.linspace(0, 1, 12))  # Get diverse colors
-    
+
+    # Enhanced color palette 
+    colors = plt.cm.Set2(np.linspace(0, 1, 6))
+
+
     for i, (name, labels) in enumerate(results.items()):
+
         if i >= len(axes):
             break
             
@@ -202,34 +228,52 @@ def plot_cluster_sizes(results):
         for j, (label, count) in enumerate(sorted_items):
             if label == -1:
                 cluster_names.append('Noise')
-                bar_colors.append('red')  # Noise in red
+                bar_colors.append('#FF6B6B')  # Distinct red for noise
             else:
                 cluster_names.append(f'C{label}')
-                bar_colors.append('skyblue')
+                bar_colors.append(colors[j % len(colors)])  # Cycle through Set2 colors
             cluster_counts.append(count)
         
-        # Create bar chart
-        bars = ax.bar(cluster_names, cluster_counts, color=bar_colors, alpha=0.7, edgecolor='black', linewidth=0.5)
+        # Create bar chart with enhanced styling
+        bars = ax.bar(cluster_names, cluster_counts, color=bar_colors, alpha=0.8, 
+                    edgecolor='white', linewidth=1.5)
         
         # Add count labels on bars
         for bar, count in zip(bars, cluster_counts):
             height = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2., height + max(cluster_counts)*0.01,
-                   f'{count}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                f'{count:,}', ha='center', va='bottom', fontsize=10, fontweight='bold')
         
-        ax.set_title(name, fontsize=11, fontweight='bold')
-        ax.set_xlabel('Clusters', fontsize=10)
-        ax.set_ylabel('Number of Points', fontsize=10)
-        ax.grid(axis='y', alpha=0.3)
+        # Enhanced typography and styling
+        ax.set_title(name, fontsize=14, fontweight='bold', pad=20)
+        ax.set_xlabel('Clusters', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Number of Points', fontsize=12, fontweight='bold')
+        
+        # Clean grid and spines
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        # Set y-axis limits for breathing room
+        ax.set_ylim([0, max(cluster_counts) * 1.1])
+        
+        # Set x-tick and y-tick label size
+        ax.tick_params(axis='x', labelsize=10)
+        ax.tick_params(axis='y', labelsize=10)
+        
+        # Set font weight for x-tick labels
+        ax.set_xticklabels(ax.get_xticklabels(), fontweight='bold')
+        # Set font weight for y-tick labels
+        ax.set_yticklabels(ax.get_yticklabels(), fontweight='bold')
         
         # Rotate x-axis labels if many clusters
         if len(cluster_names) > 5:
             ax.tick_params(axis='x', rotation=45)
-    
+
     # Hide unused subplots
     for i in range(n_algorithms, len(axes)):
         axes[i].set_visible(False)
-    
+
     plt.suptitle('Cluster Size Distribution by Algorithm', fontsize=16, fontweight='bold', y=0.98)
     plt.tight_layout()
     plt.show()

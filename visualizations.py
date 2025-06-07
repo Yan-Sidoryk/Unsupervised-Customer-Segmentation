@@ -223,6 +223,7 @@ def spending_visualization(info_df, spend_columns):
     plt.show()
 
 
+
 def plot_correlation_heatmap(info_df, columns):
     # Calculate the correlation matrix for the selected columns
     correlation_matrix = info_df[columns].corr()
@@ -282,8 +283,10 @@ def dendogram_visualization(info_df, columns):
 
     # Create dendrogram with enhanced colors and styling
     dendrogram = sch.dendrogram(linkage_matrix, labels=columns, leaf_rotation=90, 
-                            leaf_font_size=10, color_threshold=0.7*max(linkage_matrix[:,2]),
-                            above_threshold_color='gray')
+                            leaf_font_size=10, color_threshold=2.0,  # Set threshold at distance 2
+                            above_threshold_color='black')
+                            # leaf_font_size=10, color_threshold=0.7*max(linkage_matrix[:,2]),
+                            # above_threshold_color='gray')
 
     # Get current axes
     ax = plt.gca()
@@ -315,36 +318,46 @@ def dendogram_visualization(info_df, columns):
     # Make x-axis labels more readable
     plt.setp(ax.get_xticklabels(), rotation=90, ha='center', fontweight='bold')
 
+    # Add a horizontal line at distance 2 to show the color thresholdAdd commentMore actions
+    ax.axhline(y=2.0, color='red', linestyle='--', alpha=0.7, linewidth=2)
+
     plt.tight_layout()
     plt.show()
 
 
-def plot_top_purchased_items(all_items, n_items=25):
+
+def plot_top_purchased_items(all_items, n_items=25, items_type='most'):
     # Count the occurrences of each item
     item_counts = Counter([item for sublist in all_items['all_purchased_items'] for item in sublist])
 
-    # Get the top most common items
-    top_items = item_counts.most_common(n_items)
+    if items_type == 'most':
+        # Get the top most common items
+        top_items = item_counts.most_common(n_items)
+        color = [0.4, 0.76078431, 0.64705882, 1.0]
+    else:
+        # Get the least common items
+        top_items = item_counts.most_common()[:-n_items-1:-1]
+        color = [0.98823529, 0.55294118, 0.38431373, 1.0]
+
+
 
     # Separate the items and their counts for plotting
     items, counts = zip(*top_items)
     items = [item.replace('_', ' ').title() for item in items]  # Format item names
     counts = list(counts)
 
-    # Enhanced color palette
-    # colors = plt.cm.Set2(np.linspace(0, 1, len(items)))[::-1]  # Reverse the order for better visibility
 
     # Plot the top items with enhanced styling
     plt.figure(figsize=(15, 6))
 
     # Create bars with enhanced styling
-    bars = plt.bar(range(len(items)), counts, color=[0.4, 0.76078431, 0.64705882, 1.0], alpha=0.8, 
+    bars = plt.bar(range(len(items)), counts, color=color, alpha=0.8, 
                 edgecolor='white', linewidth=1.5)
 
     # Customize the plot
     plt.xlabel('Items', fontsize=12, fontweight='bold')
     plt.ylabel('Count', fontsize=12, fontweight='bold')
-    plt.title(f'Top {len(items)} Purchased Items', fontsize=14, fontweight='bold', pad=20)
+    plt.title(f'{len(items)} {items_type.capitalize()} Purchased Items', fontsize=14, fontweight='bold', pad=20)
 
     # Set x-axis labels
     plt.xticks(range(len(items)), items, rotation=45, ha='right', fontweight='bold', fontsize=10)
@@ -773,11 +786,13 @@ def plot_feature_importance(df, cluster_col='cluster'):
 
 
 
+# ---------- After Clustering Visualizations ---------- #
+
 def plot_clusters_map(info_df, cluster_col='cluster'):
 
     # Get unique clusters and colors
     unique_clusters = sorted(info_df['cluster'].unique())
-    colors = px.colors.qualitative.G10
+    colors = px.colors.qualitative.Set2  # Use a qualitative color palette
 
     # Create figure with individual traces for each cluster
     fig = go.Figure()
@@ -838,7 +853,8 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
         title={
             'text': f'Customer Clusters - {len(info_df)} customers',
             'x': 0.5,
-            'xanchor': 'center'
+            'xanchor': 'center',
+            'font': {'color': 'black', 'size': 20}
         },
         legend=dict(
             orientation="v",
@@ -856,8 +872,6 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
     fig.show()
 
 
-
-# ---------- After Clustering Visualizations ---------- #
 
 def plot_umap_2d(info_df_clustered):
 
@@ -921,6 +935,42 @@ def plot_umap_2d(info_df_clustered):
 
 
 
+def plot_clusters_3d(info_df_clustered, method):
+    random_state = 42
+
+    method = method.upper()
+    if method == 'UMAP':
+        # Apply UMAP for 3D dimensionality reduction
+        umap_model_3d = UMAP(n_components=3, random_state=random_state)
+        result_3d = umap_model_3d.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1))
+
+    elif method == 'PCA':
+        pca = PCA(n_components=3)
+        result_3d = pca.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1))
+
+    # Use Set2 color sequence
+    fig = px.scatter_3d(
+        x=result_3d[:, 0],
+        y=result_3d[:, 1],
+        z=result_3d[:, 2],
+        color=info_df_clustered['cluster'].astype(str),
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        title=f'3D {method} Projection of Customer Segments',
+        labels={'color': 'Cluster'},
+        opacity=1
+    )
+    fig.update_traces(marker=dict(size=4))
+    fig.update_layout(
+        scene=dict(
+            aspectmode='cube'  # Makes the plot more square
+        ),
+        width=700,
+        height=700
+    )
+    fig.show()
+
+
+
 def plot_cluster_boxplots(info_df_with_cluster):
     # Select numeric columns (excluding customer_id and cluster)
     numeric_cols = info_df_with_cluster.select_dtypes(include=[np.number]).columns.difference(['cluster'])
@@ -940,20 +990,20 @@ def plot_cluster_boxplots(info_df_with_cluster):
             ax=axes[i],
             palette='Set2',  # Use Set2 to match other visualizations
             linewidth=1.5,
-            flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='white', markeredgewidth=0.5)
+            flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='dimgray', markeredgewidth=0.5)
         )
         
         # Customize the plot
         axes[i].set_xlabel('Cluster', fontsize=10, fontweight='bold')
         axes[i].set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
-        axes[i].set_title(f'Boxplot of {col.replace("_", " ").title()} by Cluster', 
+        axes[i].set_title(f'{col.replace("_", " ").title()} by Cluster', 
                         fontsize=11, fontweight='bold', pad=15)
         
         # Make tick labels bold
-        axes[i].tick_params(axis='x', labelsize=9)
+        # axes[i].tick_params(axis='x', labelsize=9)
         axes[i].tick_params(axis='y', labelsize=9)
-        for tick in axes[i].get_xticklabels():
-            tick.set_fontweight('bold')
+        # for tick in axes[i].get_xticklabels():
+        #     tick.set_fontweight('bold')
         for tick in axes[i].get_yticklabels():
             tick.set_fontweight('bold')
         

@@ -11,7 +11,7 @@ import plotly.express as px
 
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import RobustScaler, OneHotEncoder
-from sklearn.metrics import silhouette_score, silhouette_samplesm
+from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import NearestNeighbors
 
