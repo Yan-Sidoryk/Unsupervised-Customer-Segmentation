@@ -179,12 +179,12 @@ def extra_preprocessing(data, k=5):
 
     # Remove spent columns from numerical columns
     numerical_cols = [col for col in numerical_cols if col not in spend_columns]
-    print(f"Numerical columns: {numerical_cols}")
 
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
     # Manually rescale some columns 
+    
     # info_df['lifetime_spend_meat'] = info_df['lifetime_spend_meat'] * 0.3
     # info_df['lifetime_spend_fish'] = info_df['lifetime_spend_fish'] * 0.5
     # info_df_num_scaled['spend_meat_percent'] = info_df_num_scaled['spend_meat_percent'] * 0.5
@@ -197,12 +197,12 @@ def extra_preprocessing(data, k=5):
 
 
 
-def dimensionality_reduction(info_df_scaled, n_comp):
+def dimensionality_reduction(info_df_scaled, outliers_df, n_comp):
 
     # Apply PCA for dimensionality reduction
     info_df_pca = info_df_scaled[['customer_id']].copy()
-    pca = PCA(n_components=n_comp, random_state=42)
-    pca_result = pca.fit_transform(info_df_scaled.drop(columns=['customer_id'], axis=1))
+    pca = PCA(n_components=n_comp, random_state=42).fit(info_df_scaled.drop(columns=['customer_id'], axis=1))
+    pca_result = pca.transform(info_df_scaled.drop(columns=['customer_id'], axis=1))
     for i in range(n_comp):
         info_df_pca[f'pca{i+1}'] = pca_result[:, i]
 
@@ -211,7 +211,14 @@ def dimensionality_reduction(info_df_scaled, n_comp):
     print(f"Variance explained by each component: {explained_variance}")
     print(f"Total variance explained by {n_comp} components: {sum(explained_variance):.2%}")
 
-    return info_df_pca
+
+    # Repeat for the outliers DataFrame
+    outliers_df_pca = outliers_df[['customer_id']].copy()
+    outliers_pca = pca.transform(outliers_df.drop(columns=['customer_id'], axis=1))
+    for i in range(n_comp):
+        outliers_df_pca[f'pca{i+1}'] = outliers_pca[:, i]
+
+    return info_df_pca, outliers_df_pca
 
 
 
