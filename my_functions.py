@@ -10,7 +10,7 @@ import seaborn as sns
 import plotly.express as px
 
 from sklearn.impute import KNNImputer
-from sklearn.preprocessing import RobustScaler, OneHotEncoder
+from sklearn.preprocessing import PowerTransformer, RobustScaler, OneHotEncoder
 from sklearn.metrics import silhouette_score, silhouette_samples
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import NearestNeighbors
@@ -70,27 +70,20 @@ def feature_engineering_info(data, k=5):
     data['morning_shopper'] = data['typical_hour'].between(6, 11).astype(int)
     data['afternoon_shopper'] = data['typical_hour'].between(12, 17).astype(int)
     data['evening_shopper'] = data['typical_hour'].between(18, 23).astype(int)
-    # data.drop('typical_hour', axis=1, inplace=True)  >>> Not dropping the original column for now, might need for visualization <<<
 
     # Add total lifetime spend column
     spend_columns = [col for col in data.columns if 'lifetime_spend_' in col]
+
     data['total_lifetime_spend'] = data[spend_columns].sum(axis=1)
 
     # Add columns for percentage of total spend
     for col in spend_columns:     
         data[f'spend_{"_".join(col.split("_")[2:])}_percent'] = (data[col] / data['total_lifetime_spend']) * 100
-     # >>> Keeping the original spend columns for the visualization <<<
 
     # Add column for education level 
     data['degree_level'] = data['customer_name'].str.extract(r'^([^\.]+)\.').fillna('None')
     # Define the mapping for degree_level to ordinal values
-    degree_level_mapping = {
-        'None': 0,
-        'Bsc': 1,
-        'Msc': 2,
-        'Phd': 3
-    }
-
+    degree_level_mapping = {'None': 0, 'Bsc': 1, 'Msc': 2, 'Phd': 3}
     # Apply the mapping to the degree_level column
     data['degree_level_ordinal'] = data['degree_level'].map(degree_level_mapping)
 
@@ -124,6 +117,8 @@ def feature_engineering_basket(data):
 
 
 def all_purchased_items(basket_df):
+
+    # Get a list of all items purchased by each customer (with repetitions)
     return basket_df.groupby('customer_id').apply(
         lambda group: pd.Series({
             'all_purchased_items': [item for sublist in group['list_of_goods'] for item in sublist]
@@ -139,12 +134,20 @@ def extra_preprocessing(data, k=5):
     # Copy the original DataFrame to preserve the original data
     info_df = data.copy()
 
-    # Drop the customers name
-    info_df.drop(columns=['customer_name'], inplace=True)
+    # Drop the irrelevant columns
+    info_df.drop(columns=['customer_name'], inplace=True)       #, 'customer_gender'
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
-    info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
+
+    # Separate spend columns
+    spend_columns = [col for col in info_df.columns if 'spend' in col]
+
+    # Apply the power transformation to the spend columns
+    pt = PowerTransformer(method='yeo-johnson', standardize=True)
+    info_df[spend_columns] = pt.fit_transform(info_df[spend_columns])
+
+    # info_df.drop(columns=['kids_home', 'teens_home'], inplace=True)
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
@@ -155,14 +158,12 @@ def extra_preprocessing(data, k=5):
     # Separate categorical columns
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
     
-
     # One-hot encode categorical columns
     encoder = OneHotEncoder(drop='first', sparse_output=False)
     info_df_cat_encoded = pd.DataFrame(
         encoder.fit_transform(info_df[categorical_cols].fillna('missing')),
         columns=encoder.get_feature_names_out(categorical_cols),
-        index=info_df.index
-    )
+        index=info_df.index)
 
     # Get the Marko clients
     marko_clients_id_list = info_df[
@@ -171,20 +172,25 @@ def extra_preprocessing(data, k=5):
             (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
         )]['customer_id'].tolist()
 
-    # Drop latitude and longitude here
+    # Drop latitude and longitude
     info_df.drop(columns=['latitude', 'longitude'], inplace=True)
 
     # Separate numerical columns after dropping latitude and longitude
     numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
+    # Remove spent columns from numerical columns
+    numerical_cols = [col for col in numerical_cols if col not in spend_columns]
+    print(f"Numerical columns: {numerical_cols}")
+
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
-    info_df_num_scaled['spend_vegetables_percent'] = info_df_num_scaled['spend_vegetables_percent'] / 2
-
+    # Manually rescale some columns 
+    # info_df_num_scaled['spend_vegetables_percent'] = info_df_num_scaled['spend_vegetables_percent'] * 0.5
+    info_df_num_scaled['age'] = info_df_num_scaled['age'] * 3
 
     # Combine all features
-    info_df_scaled = pd.concat([info_df[['customer_id']], info_df_num_scaled, info_df_cat_encoded], axis=1)
+    info_df_scaled = pd.concat([info_df_num_scaled, info_df[spend_columns + ['customer_id']], info_df_cat_encoded], axis=1)
 
     return info_df_scaled[~info_df_scaled['customer_id'].isin(marko_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(marko_clients_id_list)]
 
@@ -199,7 +205,7 @@ def dimensionality_reduction(info_df_scaled, n_comp):
     for i in range(n_comp):
         info_df_pca[f'pca{i+1}'] = pca_result[:, i]
 
-
+    # Print explained variance
     explained_variance = pca.explained_variance_ratio_
     print(f"Variance explained by each component: {explained_variance}")
     print(f"Total variance explained by {n_comp} components: {sum(explained_variance):.2%}")
@@ -219,7 +225,6 @@ def remove_outliers(info_df_scaled, eps, min_samples):
         
         ).fit_predict(info_df_scaled.drop(columns=['customer_id'], axis=1))
         
-
     # Plot the number of customers in each cluster
     plot_dbscan_counts(info_df_clustered)
 
@@ -256,14 +261,10 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
 
 
-
-
-
 def generate_cluster_profiles(info_df_clustered):
-    # Create a DataFrame to hold the cluster profiles for each cluster
-    # This will give you the mean values of each feature for each cluster
-    return info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
 
+    # Create a DataFrame to hold the cluster profiles for each cluster
+    return info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
 
 
 
@@ -298,6 +299,8 @@ def generate_cluster_names(cluster_profiles, z_threshold, max_features=4):
 
 
 def assign_outliers_to_clusters(outliers_df, clustered_df):
+
+    # Get the feature columns 
     feature_columns = [col for col in clustered_df.columns if col not in ['cluster', 'customer_id']]
     
     # Calculate centroids
@@ -316,55 +319,9 @@ def assign_outliers_to_clusters(outliers_df, clustered_df):
 
 # ---------- Association Rules ---------- #
 
-from scipy.stats import entropy
-
-def optimal_min_support(frequencies, n_transactions):
-    """
-    Calculates optimal min_support based on item frequency distribution
-    
-    Parameters:
-    frequencies (np.array): Support values for individual items
-    n_transactions (int): Total number of transactions
-    
-    Returns:
-    float: Optimal min_support value
-    """
-    # 1. Calculate frequency entropy
-    # Normalize frequencies to get probability distribution
-    freq_sum = frequencies.sum()
-    if freq_sum > 0:
-        norm_freq = frequencies / freq_sum
-        freq_entropy = entropy(norm_freq)
-    else:
-        freq_entropy = 1.0  # Default value if no frequencies
-    
-    # 2. Calculate distribution metrics
-    gini = 1 - (frequencies ** 2).sum() / (frequencies.sum() ** 2) if len(frequencies) > 0 else 0.5
-    cv = np.std(frequencies) / np.mean(frequencies) if len(frequencies) > 0 and np.mean(frequencies) > 0 else 1.0
-    
-    # 3. Base support (25th percentile)
-    q25 = np.quantile(frequencies, 0.25) if len(frequencies) > 0 else 0.05
-    
-    # 4. Entropy-based adjustment
-    entropy_factor = max(0.5, min(2.0, 1.5 - (freq_entropy / 3)))  # Normalized entropy adjustment
-    
-    # 5. Size-based adjustment
-    size_factor = min(1.0, max(0.2, 1000 / n_transactions))
-    
-    # 6. Calculate final min_support
-    min_sup = q25 * entropy_factor * size_factor
-    
-    # 7. Ensure practical bounds
-    min_sup = max(0.01, min(0.3, min_sup))
-    if len(frequencies) > 0:
-        min_sup = min(min_sup, 0.8 * np.max(frequencies))  # Don't exceed 80% of max freq
-    
-    return min_sup
-
-
-
 def get_association_rules(df, min_support):
-    # Preprocess data: Convert item lists to one-hot encoded format
+
+    # Convert item lists to one-hot encoded format
     te = TransactionEncoder()
     te_ary = te.fit_transform(df['list_of_goods'])
     encoded_df = pd.DataFrame(te_ary, columns=te.columns_)
@@ -374,7 +331,7 @@ def get_association_rules(df, min_support):
     # Generate frequent itemsets with minimum support
     frequent_itemsets = apriori(
         encoded_df, 
-        min_support=min_support,  # Adjust based on your data density
+        min_support=min_support,  # Adjust based on data density
         use_colnames=True,
         max_len=2
     )
@@ -383,17 +340,26 @@ def get_association_rules(df, min_support):
         # Extract association rules with LIFT metric
         rules = association_rules(
             frequent_itemsets,
-            metric="lift",      # Use lift as primary metric
-            min_threshold=1.0   # Only show rules with lift > 1 (positive correlation)
+            metric="lift",      
+            min_threshold=1.0   
         )
 
         # Remove duplicate suggestions
-        rules['sorted_items'] = rules.apply(
-            lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])), 
-            axis=1
-        )
-        rules = rules.drop_duplicates(subset=['sorted_items'])
-        rules = rules.drop(columns=['sorted_items'])
+        # rules['sorted_items'] = rules.apply(
+        #     lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])), 
+        #     axis=1
+        # )
+        # rules = rules.drop_duplicates(subset=['sorted_items'])
+        # rules = rules.drop(columns=['sorted_items'])
+
+        # Add a frozenset key of combined items to identify symmetric rules
+        rules['pair_key'] = rules.apply(lambda x: frozenset(x['antecedents']).union(x['consequents']), axis=1)
+
+        # Sort by confidence (or other metrics if you prefer)
+        rules = rules.sort_values(by=['confidence', 'lift'], ascending=[False, False])
+
+        # Drop duplicates keeping the highest-confidence version of each rule pair
+        rules = rules.drop_duplicates(subset='pair_key', keep='first')
 
 
         # Filter and sort relevant columns
@@ -403,7 +369,7 @@ def get_association_rules(df, min_support):
             'lift',
             'support',        # Support for full rule (antecedents + consequents)
             'confidence',
-        ]].sort_values(by=['lift', 'confidence'], ascending=False)
+        ]].sort_values(by=['lift', 'confidence'], ascending=[False, False])
 
         return result
 

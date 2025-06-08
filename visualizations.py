@@ -224,6 +224,31 @@ def spending_visualization(info_df, spend_columns):
 
 
 
+def plot_map(data):
+
+    # Check the geographical distribution of the outliers
+    fig = px.scatter_mapbox(
+        data,
+        lat='latitude',
+        lon='longitude',
+        hover_name='customer_name',  # Displays customer_name on hover
+        zoom=11,
+        height=600,
+        width=800
+    )
+
+    # Remove margins and white background
+    fig.update_layout(
+        mapbox_style="open-street-map",
+        margin=dict(l=0, r=0, t=0, b=0),  # Removes all margins
+        paper_bgcolor='rgba(0,0,0,0)',     # Transparent background
+        plot_bgcolor='rgba(0,0,0,0)'       # Transparent plot area
+    )
+
+    fig.show()  # Displays in notebook or browser
+
+
+
 def plot_correlation_heatmap(info_df, columns):
     # Calculate the correlation matrix for the selected columns
     correlation_matrix = info_df[columns].corr()
@@ -793,91 +818,6 @@ def plot_feature_importance(df, cluster_col='cluster'):
 
 # ---------- After Clustering Visualizations ---------- #
 
-def plot_clusters_map(info_df, cluster_col='cluster'):
-
-    # Get unique clusters and colors
-    unique_clusters = sorted(info_df['cluster'].unique())
-    colors = px.colors.qualitative.Set2  # Use a qualitative color palette
-
-    # Create figure with individual traces for each cluster
-    fig = go.Figure()
-
-    # Add a separate trace for each cluster
-    for i, cluster in enumerate(unique_clusters):
-        cluster_data = info_df[info_df['cluster'] == cluster]
-        
-        # Create hover text
-        hover_text = [
-            f"Customer ID: {cid}<br>Cluster: {cluster}<br>Lat: {lat:.4f}<br>Lon: {lon:.4f}<br>Age: {age}"
-            for cid, lat, lon, age in zip(
-                cluster_data['customer_id'], 
-                cluster_data['latitude'], 
-                cluster_data['longitude'],
-                cluster_data['age']
-            )
-        ]
-        
-        fig.add_trace(go.Scattermapbox(
-            lat=cluster_data['latitude'],
-            lon=cluster_data['longitude'],
-            mode='markers',
-            marker=dict(
-                size=8,
-                color=colors[i % len(colors)],
-                opacity=0.8
-            ),
-            text=hover_text,
-            hoverinfo='text',
-            name=f'Cluster {cluster} ({len(cluster_data)} customers)',
-            visible=True
-        ))
-
-    # Calculate center point
-    center_lat = info_df['latitude'].mean()
-    center_lon = info_df['longitude'].mean()
-
-
-    # Individual cluster buttons
-    for i, cluster in enumerate(unique_clusters):
-        visible_array = [False] * len(unique_clusters)
-        visible_array[i] = True
-        
-
-    # Update layout with all your original settings plus new interactive features
-    fig.update_layout(
-        mapbox=dict(
-            style="open-street-map",
-            center=dict(lat=center_lat, lon=center_lon),
-            zoom=11
-        ),
-        height=600,
-        width=1000,
-        margin=dict(l=0, r=0, t=40, b=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        title={
-            'text': f'Customer Clusters - {len(info_df)} customers',
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'color': 'black', 'size': 20}
-        },
-        legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left", 
-            x=1.02,
-            bgcolor="rgba(255,255,255,0.8)",
-            bordercolor="rgba(0,0,0,0.2)",
-            borderwidth=1
-        )
-    )
-
-    # Show the map
-    fig.show()
-
-
-
 def plot_umap_2d(info_df_clustered):
 
     # Apply UMAP for dimensionality reduction
@@ -996,7 +936,11 @@ def plot_cluster_boxplots(info_df_with_cluster):
             linewidth=1.5,
             flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='dimgray', markeredgewidth=0.5)
         )
-        
+
+        # Add red line for population mean
+        mean_value = info_df_with_cluster[col].mean()
+        axes[i].axhline(mean_value, color='red', linestyle='--', linewidth=1.5, label='Population Mean')
+
         # Customize the plot
         axes[i].set_xlabel('Cluster', fontsize=10, fontweight='bold')
         axes[i].set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
@@ -1033,6 +977,89 @@ def plot_cluster_boxplots(info_df_with_cluster):
     plt.show()
 
 
+
+def plot_clusters_map(info_df, cluster_col='cluster'):
+
+    # Get unique clusters and colors
+    unique_clusters = sorted(info_df['cluster'].unique())
+    colors = px.colors.qualitative.Set2  # Use a qualitative color palette
+
+    # Create figure with individual traces for each cluster
+    fig = go.Figure()
+
+    # Add a separate trace for each cluster
+    for i, cluster in enumerate(unique_clusters):
+        cluster_data = info_df[info_df['cluster'] == cluster]
+        
+        # Create hover text
+        hover_text = [
+            f"Customer ID: {cid}<br>Cluster: {cluster}<br>Lat: {lat:.4f}<br>Lon: {lon:.4f}<br>Age: {age}"
+            for cid, lat, lon, age in zip(
+                cluster_data['customer_id'], 
+                cluster_data['latitude'], 
+                cluster_data['longitude'],
+                cluster_data['age']
+            )
+        ]
+        
+        fig.add_trace(go.Scattermapbox(
+            lat=cluster_data['latitude'],
+            lon=cluster_data['longitude'],
+            mode='markers',
+            marker=dict(
+                size=8,
+                color=colors[i % len(colors)],
+                opacity=0.8
+            ),
+            text=hover_text,
+            hoverinfo='text',
+            name=f'Cluster {cluster} ({len(cluster_data)} customers)',
+            visible=True
+        ))
+
+    # Calculate center point
+    center_lat = info_df['latitude'].mean()
+    center_lon = info_df['longitude'].mean()
+
+
+    # Individual cluster buttons
+    for i, cluster in enumerate(unique_clusters):
+        visible_array = [False] * len(unique_clusters)
+        visible_array[i] = True
+        
+
+    # Update layout with all your original settings plus new interactive features
+    fig.update_layout(
+        mapbox=dict(
+            style="carto-positron",        # carto-positron        # open-street-map
+            center=dict(lat=center_lat, lon=center_lon),
+            zoom=11
+        ),
+        height=600,
+        width=1000,
+        margin=dict(l=0, r=0, t=40, b=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        title={
+            'text': f'Customer Clusters - {len(info_df)} customers',
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'color': 'black', 'size': 20}
+        },
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left", 
+            x=1.02,
+            bgcolor="rgba(255,255,255,0.8)",
+            bordercolor="rgba(0,0,0,0.2)",
+            borderwidth=1
+        )
+    )
+
+    # Show the map
+    fig.show()
 
 
 
