@@ -140,7 +140,7 @@ def extra_preprocessing(data, k=5):
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
 
-    # info_df.drop(columns=['kids_home', 'teens_home'], inplace=True)
+    info_df.drop(columns=['teens_home'], inplace=True)      #'kids_home', 
     # info_df.drop(columns=['lifetime_spend_groceries',
     #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
     #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
@@ -148,11 +148,11 @@ def extra_preprocessing(data, k=5):
     #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
 
     # Separate spend columns
-    spend_columns = [col for col in info_df.columns if 'spend' in col]
+    skewed_columns = ['lifetime_total_distinct_products', 'total_lifetime_spend']       #[col for col in info_df.columns if 'spend' in col]
 
     # Apply the power transformation to the spend columns
     pt = PowerTransformer(method='yeo-johnson', standardize=True)
-    info_df[spend_columns] = pt.fit_transform(info_df[spend_columns])
+    info_df[skewed_columns] = pt.fit_transform(info_df[skewed_columns])
 
     # Separate categorical columns
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
@@ -178,20 +178,20 @@ def extra_preprocessing(data, k=5):
     numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
     # Remove spent columns from numerical columns
-    numerical_cols = [col for col in numerical_cols if col not in spend_columns]
+    numerical_cols = [col for col in numerical_cols if col not in skewed_columns]
 
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
     # Manually rescale some columns 
-    
+
     # info_df['lifetime_spend_meat'] = info_df['lifetime_spend_meat'] * 0.3
     # info_df['lifetime_spend_fish'] = info_df['lifetime_spend_fish'] * 0.5
     # info_df_num_scaled['spend_meat_percent'] = info_df_num_scaled['spend_meat_percent'] * 0.5
-    info_df_num_scaled['age'] = info_df_num_scaled['age'] * 3
+    info_df_num_scaled['age'] = info_df_num_scaled['age'] * 4
 
     # Combine all features
-    info_df_scaled = pd.concat([info_df_num_scaled, info_df[spend_columns + ['customer_id']], info_df_cat_encoded], axis=1)
+    info_df_scaled = pd.concat([info_df_num_scaled, info_df[skewed_columns + ['customer_id']], info_df_cat_encoded], axis=1)
 
     return info_df_scaled[~info_df_scaled['customer_id'].isin(marko_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(marko_clients_id_list)]
 
