@@ -1,6 +1,7 @@
 # ---------- Importing the libraries ---------- #
 import pandas as pd
 import numpy as np
+from scipy.stats import mode
 
 import datetime as dt
 from collections import Counter, defaultdict
@@ -16,7 +17,8 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.neighbors import NearestNeighbors
 
 
-from sklearn.cluster import KMeans, DBSCAN, MeanShift
+from sklearn.cluster import KMeans, DBSCAN, MeanShift, AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
 from sklearn.decomposition import PCA
 from minisom import MiniSom
 import scipy.cluster.hierarchy as sch
@@ -144,7 +146,7 @@ def extra_preprocessing(data, k=5):
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
-    # info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
+    info_df.drop(columns=['kids_home', 'teens_home', 'customer_gender'], inplace=True)
     #info_df.drop(columns=['lifetime_spend_groceries',
      #   'lifetime_spend_electronics', 'lifetime_spend_vegetables',
       #   'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
@@ -255,12 +257,119 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
     return info_df_clustered
 
 
+def ensemble_clustering(info_df_pca, info_df_scaled, k):
+    """
+    Perform ensemble clustering using multiple algorithms with weighted voting.
+    
+    Parameters:
+    -----------
+    info_df_pca : DataFrame
+        PCA-transformed data with customer_id column
+    info_df_scaled : DataFrame  
+        Scaled original data with customer_id column
+    k : int
+        Number of clusters
+    
+    Returns:
+    --------
+    DataFrame
+        Clustered data with ensemble cluster labels
+    """
+    
+    # Prepare data (remove customer_id for clustering)
+    X_pca = info_df_pca.drop(columns=['customer_id'])
+    
+    # Initialize clustering algorithms
+    algorithms = {
+        'kmeans': KMeans(n_clusters=k, random_state=42, n_init=10),
+        'hierarchical': AgglomerativeClustering(n_clusters=k),
+        'gaussian_mixture': GaussianMixture(n_components=k, random_state=42),
+    }
+    
+    # Store cluster labels from each algorithm
+    cluster_results = {}
+    
+    # Fit each algorithm and get predictions
+    for name, algorithm in algorithms.items():
+        if name == 'gaussian_mixture':
+            # GMM uses fit_predict differently
+            algorithm.fit(X_pca)
+            labels = algorithm.predict(X_pca)
+        else:
+            labels = algorithm.fit_predict(X_pca)
+        
+        cluster_results[name] = labels
+    
+    # Weighted voting across algorithms
+    weights = {'kmeans': 0.5, 'hierarchical': 0.3, 'gaussian_mixture': 0.2}
+    n_samples = len(list(cluster_results.values())[0])
+    ensemble_labels = np.zeros(n_samples, dtype=int)
+    
+    for i in range(n_samples):
+        cluster_scores = np.zeros(k)
+        
+        for alg, labels in cluster_results.items():
+            cluster_scores[labels[i]] += weights.get(alg, 1.0)
+        
+        ensemble_labels[i] = np.argmax(cluster_scores)
+    
+    # Add ensemble cluster labels to PCA dataframe
+    info_df_pca['cluster'] = ensemble_labels
+    
+    # Merge with original scaled data
+    info_df_clustered = info_df_scaled.merge(
+        info_df_pca[['customer_id', 'cluster']],
+        on='customer_id',
+        how='right'
+    )
+    
+    return info_df_clustered
 
 
-def generate_cluster_profiles(info_df_clustered):
-    # Create a DataFrame to hold the cluster profiles for each cluster
-    # This will give you the mean values of each feature for each cluster
-    return info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
+def generate_cluster_profiles(info_df_clustered, top_n_features=10):
+    """
+    Generates and visualizes the difference between cluster means and overall means for each feature.
+    
+    Parameters:
+    - info_df_clustered (DataFrame): DataFrame containing cluster labels.
+    - top_n_features (int): Number of most variant features to show in the heatmap.
+    
+    Returns:
+    - profile_df (DataFrame): Difference between cluster means and overall means.
+    """
+    # Drop non-feature columns
+    feature_df = info_df_clustered.drop(columns=['customer_id'], errors='ignore')
+    
+    # Separate features from cluster labels
+    features_only = feature_df.drop(columns=['cluster'])
+    
+    # Compute overall means for each feature
+    overall_means = features_only.mean()
+    
+    # Compute cluster-wise mean profiles
+    cluster_means = feature_df.groupby('cluster').mean()
+    
+    # Calculate differences from overall mean
+    profile_df = cluster_means.subtract(overall_means, axis=1).round(2)
+
+    # Find top N most variant features across clusters (based on differences)
+    variances = profile_df.var().sort_values(ascending=False)
+    top_features = variances.head(top_n_features).index
+
+    # Plot heatmap
+    plt.figure(figsize=(1.2 * top_n_features, 6))
+    sns.heatmap(profile_df[top_features], annot=True, fmt=".2f", cmap="RdBu_r", 
+                center=0, linewidths=0.5, cbar_kws={"label": "Difference from Overall Mean"})
+
+    plt.title("Cluster Profiles (Difference from Overall Mean)", fontsize=14, fontweight='bold', pad=15)
+    plt.xlabel("Feature", fontsize=12)
+    plt.ylabel("Cluster", fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+    return profile_df
 
 
 

@@ -988,11 +988,21 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
 
 # ---------- After Clustering Visualizations ---------- #
 
-def plot_umap_2d(info_df_clustered):
+def plot_2d_umap(info_df_clustered, n_neighbors=20, min_dist=0.1, 
+                 title='2D UMAP Projection of Customer Segments',
+                 width=700, height=700, marker_size=4, opacity=1,
+                 random_state=42):
 
-    # Apply UMAP for dimensionality reduction
-    umap_model = UMAP(n_components=2, random_state=42)
-    umap_result = umap_model.fit_transform(info_df_clustered.drop(columns=['cluster'] , axis=1))
+    feature_columns = info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1)
+    
+    # Fit 3D UMAP
+    umap_model_2d = UMAP(
+        n_components=3, 
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        random_state=random_state
+    )
+    umap_result_2d = umap_model_2d.fit_transform(feature_columns)
 
     # Create the visualization with enhanced styling
     plt.figure(figsize=(10, 8))
@@ -1049,6 +1059,105 @@ def plot_umap_2d(info_df_clustered):
     plt.show()
 
 
+
+def plot_3d_umap(info_df_clustered, n_neighbors=20, min_dist=0.1, 
+                 title='3D UMAP Projection of Customer Segments',
+                 width=700, height=700, marker_size=4, opacity=1,
+                 random_state=42):
+    
+    # Prepare data - remove cluster and customer_id columns
+    feature_columns = info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1)
+    
+    # Fit 3D UMAP
+    umap_model_3d = UMAP(
+        n_components=3, 
+        n_neighbors=n_neighbors,
+        min_dist=min_dist,
+        random_state=random_state
+    )
+    umap_result_3d = umap_model_3d.fit_transform(feature_columns)
+    
+    # Create 3D scatter plot
+    fig = px.scatter_3d(
+        x=umap_result_3d[:, 0],
+        y=umap_result_3d[:, 1],
+        z=umap_result_3d[:, 2],
+        color=info_df_clustered['cluster'].astype(str),
+        title=title,
+        labels={'color': 'Cluster'},
+        opacity=opacity,
+        category_orders={"color": [str(i) for i in sorted(info_df_clustered['cluster'].unique())]}
+    )
+    
+    # Update plot styling
+    fig.update_traces(marker=dict(size=marker_size))
+    fig.update_layout(
+        title={'text': title, 'x': 0.5, 'xanchor': 'center'},  # Center the title
+        scene=dict(
+            aspectmode='cube',  # Square aspect ratio
+            xaxis_title='UMAP Dimension 1',
+            yaxis_title='UMAP Dimension 2',
+            zaxis_title='UMAP Dimension 3'
+        ),
+        width=width,
+        height=height,
+        showlegend=True,
+        legend=dict(
+            traceorder='normal'  # Ensures legend follows the order of traces
+        )
+    )
+       
+    # Show the plot
+    return fig
+
+def plot_3d_pca_clusters(info_df_clustered, title='3D PCA Projection of Customer Segments', 
+                         width=700, height=700, marker_size=4, opacity=1):
+    """
+    Creates a 3D PCA visualization of clustered data.
+    
+    Parameters:
+    - info_df_clustered (DataFrame): DataFrame containing cluster labels and features.
+    - title (str): Plot title.
+    - width (int): Plot width in pixels.
+    - height (int): Plot height in pixels.
+    - marker_size (int): Size of scatter plot markers.
+    - opacity (float): Marker opacity (0-1).
+    
+    Returns:
+    - fig: Plotly figure object
+    - pca_result (array): PCA-transformed data
+    - pca (PCA): Fitted PCA object
+    """
+    # Apply PCA for 3D dimensionality reduction
+    pca = PCA(n_components=3)
+    pca_result = pca.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], errors='ignore'))
+
+    # Create a 3D scatter plot with Plotly and set a square aspect ratio
+    fig = px.scatter_3d(
+        x=pca_result[:, 0],
+        y=pca_result[:, 1],
+        z=pca_result[:, 2],
+        color=info_df_clustered['cluster'].astype(str),
+        title=title,
+        labels={'color': 'Cluster'},
+        opacity=opacity,
+        category_orders={"color": [str(i) for i in sorted(info_df_clustered['cluster'].unique())]}
+    )
+    
+    fig.update_traces(marker=dict(size=marker_size))
+    fig.update_layout(
+        title={'text': title, 'x': 0.5, 'xanchor': 'center'},  # Center the title
+        scene=dict(
+            aspectmode='cube'  # Makes the plot more square
+        ),
+        width=width,
+        height=height,
+        legend=dict(
+            traceorder='normal'  # Ensures legend follows the order of traces
+        )
+    )
+    
+    return fig
 
 def plot_cluster_boxplots(info_df_with_cluster):
     import matplotlib.pyplot as plt
