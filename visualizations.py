@@ -710,7 +710,6 @@ def plot_cluster_counts(info_df_clustered, cluster_column='cluster'):
     plt.show()
 
 
-
 def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
 
     # Use all numeric columns except the cluster column
@@ -728,17 +727,25 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     # Create subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
     fig.suptitle(f'Silhouette Analysis for Clustered Data\nOverall Average Score: {silhouette_avg:.3f}', 
-                 fontsize=16, fontweight='bold', y=1.02)
+                 fontsize=16, fontweight='bold', y=1.02, ha='center')
     
     # === LEFT PLOT: Silhouette Plot ===
     y_lower = 10
-    unique_labels = sorted(np.unique(cluster_labels))[::-1]  # Sort labels in descending order for better visualization
+    unique_labels = sorted(np.unique(cluster_labels))  # Sort labels in ascending order (0, 1, 2, ...)
     
-    # Enhanced color palette
-    colors = plt.cm.Set2(np.linspace(0, 1, len(unique_labels)))
+    # Use Plotly's default color sequence to match the 3D plots
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+    colors = [plotly_colors[i % len(plotly_colors)] for i in range(len(unique_labels))]
+    
     cluster_stats = {}
     
-    for i, cluster_label in enumerate(unique_labels):
+    # Plot from bottom to top (reverse order for display, but maintain cluster order)
+    display_order = unique_labels[::-1]  # Reverse for better visualization (highest cluster at top)
+    
+    for i, cluster_label in enumerate(display_order):
         # Aggregate silhouette scores for samples belonging to cluster i
         ith_cluster_silhouette_values = sample_silhouette_values[cluster_labels == cluster_label]
         ith_cluster_silhouette_values.sort()
@@ -746,7 +753,10 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
         size_cluster_i = ith_cluster_silhouette_values.shape[0]
         y_upper = y_lower + size_cluster_i
         
-        color = colors[i]
+        # Use color based on original cluster order, not display order
+        color_index = unique_labels.index(cluster_label)
+        color = colors[color_index]
+        
         ax1.fill_betweenx(np.arange(y_lower, y_upper), 0, ith_cluster_silhouette_values,
                          facecolor=color, edgecolor='white', alpha=0.8, linewidth=0.5)
         
@@ -781,7 +791,7 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
     
     # === RIGHT PLOT: Bar Chart ===
-    cluster_nums = list(cluster_stats.keys())[::-1]  # Reverse order for bar chart
+    cluster_nums = unique_labels  # Keep original order (0, 1, 2, ...)
     avg_scores = [cluster_stats[c]['avg_score'] for c in cluster_nums]
     sizes = [cluster_stats[c]['size'] for c in cluster_nums]
     bar_colors = [cluster_stats[c]['color'] for c in cluster_nums]
@@ -904,14 +914,19 @@ def plot_feature_importance(df, cluster_col='cluster'):
 
 def plot_clusters_map(info_df, cluster_col='cluster'):
 
-    # Get unique clusters and colors
+    # Get unique clusters and use consistent Plotly default colors
     unique_clusters = sorted(info_df['cluster'].unique())
-    colors = px.colors.qualitative.G10
+    
+    # Use Plotly's default color sequence to match the 3D plots
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
 
     # Create figure with individual traces for each cluster
     fig = go.Figure()
 
-    # Add a separate trace for each cluster
+    # Add a separate trace for each cluster in order
     for i, cluster in enumerate(unique_clusters):
         cluster_data = info_df[info_df['cluster'] == cluster]
         
@@ -932,7 +947,7 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
             mode='markers',
             marker=dict(
                 size=8,
-                color=colors[i % len(colors)],
+                color=plotly_colors[i % len(plotly_colors)],
                 opacity=0.8
             ),
             text=hover_text,
@@ -945,14 +960,7 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
     center_lat = info_df['latitude'].mean()
     center_lon = info_df['longitude'].mean()
 
-
-    # Individual cluster buttons
-    for i, cluster in enumerate(unique_clusters):
-        visible_array = [False] * len(unique_clusters)
-        visible_array[i] = True
-        
-
-    # Update layout with all your original settings plus new interactive features
+    # Update layout with all your original settings plus consistent styling
     fig.update_layout(
         mapbox=dict(
             style="open-street-map",
@@ -977,7 +985,8 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
             x=1.02,
             bgcolor="rgba(255,255,255,0.8)",
             bordercolor="rgba(0,0,0,0.2)",
-            borderwidth=1
+            borderwidth=1,
+            traceorder='normal'  # Ensures legend follows the order of traces
         )
     )
 
