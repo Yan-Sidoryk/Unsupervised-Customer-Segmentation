@@ -584,46 +584,67 @@ def plot_elbow_and_silhouette(info_df_scaled, max_k=10, step=1):
 
 
 def plot_cluster_counts(info_df_clustered, cluster_column='cluster'):
-    
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # Define consistent cluster color palette (same as other plots)
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+    unique_labels = sorted(info_df_clustered[cluster_column].unique())
+    custom_palette = {cluster: plotly_colors[i % len(plotly_colors)] for i, cluster in enumerate(unique_labels)}
+
     # Get cluster counts
     cluster_counts = info_df_clustered.groupby([cluster_column]).size()
-    unique_labels = sorted(cluster_counts.index)
-    
-    # Enhanced color palette
-    colors = plt.cm.Set2(np.linspace(0, 1, len(unique_labels)))[::-1]  # Reverse the order for better visibility
-    
+
     # Create the plot
     fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Create bars
-    bars = ax.bar(range(len(unique_labels)), cluster_counts.values, 
-                  color=colors, alpha=0.8, edgecolor='white', linewidth=1.5)
-    
+
+    # Create bars using consistent colors
+    colors = [custom_palette[cluster] for cluster in unique_labels]
+    bars = ax.bar(
+        range(len(unique_labels)),
+        cluster_counts.values,
+        color=colors,
+        alpha=0.8,
+        edgecolor='white',
+        linewidth=1.5
+    )
+
     # Customize the plot
     ax.set_xlabel('Cluster', fontsize=12, fontweight='bold')
     ax.set_ylabel('Number of Customers', fontsize=12, fontweight='bold')
     ax.set_title('Number of Customers in Each Cluster', fontsize=14, fontweight='bold', pad=20)
-    
+
     # Set x-axis labels
     ax.set_xticks(range(len(unique_labels)))
     ax.set_xticklabels([f'C{c}' for c in unique_labels], fontweight='bold')
-    
+
     # Add grid and clean styling
     ax.grid(True, alpha=0.3, axis='y')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    
+
     # Add value labels on bars
     for bar, count in zip(bars, cluster_counts.values):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + max(cluster_counts.values) * 0.01,
-                f'{count:,}', ha='center', va='bottom', fontweight='bold', fontsize=10)
-    
+        ax.text(
+            bar.get_x() + bar.get_width()/2.,
+            height + max(cluster_counts.values) * 0.01,
+            f'{count:,}',
+            ha='center',
+            va='bottom',
+            fontweight='bold',
+            fontsize=10
+        )
+
     # Set y-axis limits
     ax.set_ylim([0, max(cluster_counts.values) * 1.1])
-    
+
     plt.tight_layout()
     plt.show()
+
 
 
 
@@ -644,17 +665,25 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     # Create subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 8))
     fig.suptitle(f'Silhouette Analysis for Clustered Data\nOverall Average Score: {silhouette_avg:.3f}', 
-                 fontsize=16, fontweight='bold', y=1.02)
+                 fontsize=16, fontweight='bold', y=1.02, ha='center')
     
     # === LEFT PLOT: Silhouette Plot ===
     y_lower = 10
-    unique_labels = sorted(np.unique(cluster_labels))[::-1]  # Sort labels in descending order for better visualization
+    unique_labels = sorted(np.unique(cluster_labels))  # Sort labels in ascending order (0, 1, 2, ...)
     
-    # Enhanced color palette
-    colors = plt.cm.Set2(np.linspace(0, 1, len(unique_labels)))
+    # Use Plotly's default color sequence to match the 3D plots
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+    colors = [plotly_colors[i % len(plotly_colors)] for i in range(len(unique_labels))]
+    
     cluster_stats = {}
     
-    for i, cluster_label in enumerate(unique_labels):
+    # Plot from bottom to top (reverse order for display, but maintain cluster order)
+    display_order = unique_labels[::-1]  # Reverse for better visualization (highest cluster at top)
+    
+    for i, cluster_label in enumerate(display_order):
         # Aggregate silhouette scores for samples belonging to cluster i
         ith_cluster_silhouette_values = sample_silhouette_values[cluster_labels == cluster_label]
         ith_cluster_silhouette_values.sort()
@@ -662,7 +691,10 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
         size_cluster_i = ith_cluster_silhouette_values.shape[0]
         y_upper = y_lower + size_cluster_i
         
-        color = colors[i]
+        # Use color based on original cluster order, not display order
+        color_index = unique_labels.index(cluster_label)
+        color = colors[color_index]
+        
         ax1.fill_betweenx(np.arange(y_lower, y_upper), 0, ith_cluster_silhouette_values,
                          facecolor=color, edgecolor='white', alpha=0.8, linewidth=0.5)
         
@@ -697,7 +729,7 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     ax1.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
     
     # === RIGHT PLOT: Bar Chart ===
-    cluster_nums = list(cluster_stats.keys())[::-1]  # Reverse order for bar chart
+    cluster_nums = unique_labels  # Keep original order (0, 1, 2, ...)
     avg_scores = [cluster_stats[c]['avg_score'] for c in cluster_nums]
     sizes = [cluster_stats[c]['size'] for c in cluster_nums]
     bar_colors = [cluster_stats[c]['color'] for c in cluster_nums]
@@ -737,6 +769,7 @@ def plot_silhouette_analysis(info_df_clustered, cluster_column='cluster'):
     # Return average cluster silhouette scores as a sorted dictionary
     avg_cluster_scores = {key : cluster_stats[key]['avg_score'] for key in cluster_stats.keys()}
     return dict(sorted(avg_cluster_scores.items(), key=lambda item: item[1], reverse=True))
+
 
 
 
@@ -822,34 +855,35 @@ def plot_feature_importance(df, cluster_col='cluster'):
 
 def plot_umap_2d(info_df_clustered):
 
-    # Apply UMAP for dimensionality reduction
+    # Define consistent cluster color palette
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+    unique_clusters = sorted(info_df_clustered['cluster'].unique())
+    custom_palette = {cluster: plotly_colors[i % len(plotly_colors)] for i, cluster in enumerate(unique_clusters)}
+
+    # Apply UMAP
     umap_model = UMAP(n_components=2, random_state=42)
-    umap_result = umap_model.fit_transform(info_df_clustered.drop(columns=['cluster'] , axis=1))
+    umap_result = umap_model.fit_transform(info_df_clustered.drop(columns=['cluster'], axis=1))
 
-    # Create the visualization with enhanced styling
+    # Plot
     plt.figure(figsize=(10, 8))
-
-    # Create scatter plot with enhanced styling
-    scatter = sns.scatterplot(
+    ax = sns.scatterplot(
         x=umap_result[:, 0], 
         y=umap_result[:, 1], 
         hue=info_df_clustered['cluster'], 
-        palette='Set2',
+        palette=custom_palette,
         alpha=0.8,
         s=80,
         edgecolors='white',
         linewidth=0.5
     )
 
-    # Get current axes
-    ax = plt.gca()
-
-    # Customize the plot with consistent styling
     plt.title('UMAP Projection of Customer Segments', fontsize=14, fontweight='bold', pad=20)
     plt.xlabel('UMAP Dimension 1', fontsize=12, fontweight='bold')
     plt.ylabel('UMAP Dimension 2', fontsize=12, fontweight='bold')
 
-    # Make tick labels bold
     ax.tick_params(axis='x', labelsize=10)
     ax.tick_params(axis='y', labelsize=10)
     for label in ax.get_xticklabels():
@@ -857,27 +891,20 @@ def plot_umap_2d(info_df_clustered):
     for label in ax.get_yticklabels():
         label.set_fontweight('bold')
 
-    # Improve legend with bold styling
     legend = plt.legend(title='Cluster', title_fontsize=12, fontsize=10, 
-                    frameon=True, fancybox=True, shadow=True)
+                        frameon=True, fancybox=True, shadow=True)
     legend.get_title().set_fontweight('bold')
     for text in legend.get_texts():
         text.set_fontweight('bold')
 
-    # Add grid and clean styling
     ax.grid(True, alpha=0.3, axis='both')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_linewidth(1.5)
     ax.spines['bottom'].set_linewidth(1.5)
-
-    # Set background color to white for better contrast
     ax.set_facecolor('white')
 
-    # Tight layout
     plt.tight_layout()
-    
-    # Show the plot
     plt.show()
 
 
@@ -886,7 +913,6 @@ def plot_clusters_3d(info_df_clustered, method):
 
     method = method.upper()
     if method == 'UMAP':
-        # Apply UMAP for 3D dimensionality reduction
         umap_model_3d = UMAP(n_components=3, random_state=42)
         result_3d = umap_model_3d.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1))
 
@@ -894,84 +920,96 @@ def plot_clusters_3d(info_df_clustered, method):
         pca = PCA(n_components=3)
         result_3d = pca.fit_transform(info_df_clustered.drop(columns=['cluster', 'customer_id'], axis=1))
 
-    # Use Set2 color sequence
+    # Define consistent color mapping for clusters
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+    unique_clusters = sorted(info_df_clustered['cluster'].unique())
+    color_discrete_map = {str(cluster): plotly_colors[i % len(plotly_colors)] for i, cluster in enumerate(unique_clusters)}
+
+    # Plot using Plotly Express with explicit color mapping
     fig = px.scatter_3d(
         x=result_3d[:, 0],
         y=result_3d[:, 1],
         z=result_3d[:, 2],
         color=info_df_clustered['cluster'].astype(str),
-        color_discrete_sequence=px.colors.qualitative.Set2,
+        color_discrete_map=color_discrete_map,  # <- consistent coloring here
         title=f'3D {method} Projection of Customer Segments',
         labels={'color': 'Cluster'},
         opacity=1
     )
+
     fig.update_traces(marker=dict(size=4))
     fig.update_layout(
-        scene=dict(
-            aspectmode='cube'  # Makes the plot more square
-        ),
+        scene=dict(aspectmode='cube'),
         width=700,
         height=700
     )
+
     fig.show()
 
 
 
+
 def plot_cluster_boxplots(info_df_with_cluster):
-    # Select numeric columns (excluding customer_id and cluster)
+    # Define consistent Plotly-style colors
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
+
+    # Sort clusters and assign consistent colors
+    unique_clusters = sorted(info_df_with_cluster['cluster'].unique())
+    cluster_order = unique_clusters  # Ensure fixed order
+    palette = [plotly_colors[i % len(plotly_colors)] for i in range(len(unique_clusters))]
+
+    # Select numeric columns (excluding 'cluster' and possible ID column)
     numeric_cols = info_df_with_cluster.select_dtypes(include=[np.number]).columns.difference(['cluster'])
 
-    # Plot boxplots for each numeric variable grouped by cluster
+    # Layout for subplots
     n_cols = 4
     n_rows = int(np.ceil(len(numeric_cols) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, 4 * n_rows))
     axes = axes.flatten()
 
     for i, col in enumerate(numeric_cols):
-        # Create boxplot with enhanced styling
-        box_plot = sns.boxplot(
+        ax = axes[i]
+        sns.boxplot(
             data=info_df_with_cluster,
             x='cluster',
             y=col,
-            ax=axes[i],
-            palette='Set2',  # Use Set2 to match other visualizations
+            ax=ax,
+            order=cluster_order,
+            palette=palette,
             linewidth=1.5,
-            flierprops=dict(marker='o', markersize=4, alpha=0.6, markeredgecolor='dimgray', markeredgewidth=0.5)
+            flierprops=dict(marker='o', markersize=4, alpha=0.6,
+                            markeredgecolor='dimgray', markeredgewidth=0.5)
         )
 
-        # Add red line for population mean
+        # Add red horizontal line for the population mean
         mean_value = info_df_with_cluster[col].mean()
-        axes[i].axhline(mean_value, color='red', linestyle='--', linewidth=1.5, label='Population Mean')
+        ax.axhline(mean_value, color='red', linestyle='--', linewidth=1.5)
 
-        # Customize the plot
-        axes[i].set_xlabel('Cluster', fontsize=10, fontweight='bold')
-        axes[i].set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
-        axes[i].set_title(f'{col.replace("_", " ").title()} by Cluster', 
-                        fontsize=11, fontweight='bold', pad=15)
-        
-        # Make tick labels bold
-        # axes[i].tick_params(axis='x', labelsize=9)
-        axes[i].tick_params(axis='y', labelsize=9)
-        # for tick in axes[i].get_xticklabels():
-        #     tick.set_fontweight('bold')
-        for tick in axes[i].get_yticklabels():
+        # Customize plot styling
+        ax.set_xlabel('Cluster', fontsize=10, fontweight='bold')
+        ax.set_ylabel(col.replace('_', ' ').title(), fontsize=10, fontweight='bold')
+        ax.set_title(f'{col.replace("_", " ").title()} by Cluster',
+                     fontsize=11, fontweight='bold', pad=15)
+        ax.tick_params(axis='y', labelsize=9)
+        for tick in ax.get_yticklabels():
             tick.set_fontweight('bold')
-        
-        # Add grid and clean styling
-        axes[i].grid(True, alpha=0.3, axis='y')
-        axes[i].spines['top'].set_visible(False)
-        axes[i].spines['right'].set_visible(False)
-        axes[i].spines['left'].set_linewidth(1.5)
-        axes[i].spines['bottom'].set_linewidth(1.5)
-        
-        # Set background color to white
-        axes[i].set_facecolor('white')
-        
-        # Format x-axis labels as C0, C1, etc.
-        cluster_labels = [f'C{int(label.get_text())}' for label in axes[i].get_xticklabels()]
-        axes[i].set_xticklabels(cluster_labels, fontweight='bold')
+        ax.grid(True, alpha=0.3, axis='y')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_linewidth(1.5)
+        ax.spines['bottom'].set_linewidth(1.5)
+        ax.set_facecolor('white')
 
-    # Remove unused subplots
+        # Set x-axis tick labels as C0, C1, ...
+        ax.set_xticklabels([f'C{int(c)}' for c in cluster_order], fontweight='bold')
+
+    # Remove any extra empty subplots
     for j in range(len(numeric_cols), len(axes)):
         fig.delaxes(axes[j])
 
@@ -982,14 +1020,19 @@ def plot_cluster_boxplots(info_df_with_cluster):
 
 def plot_clusters_map(info_df, cluster_col='cluster'):
 
-    # Get unique clusters and colors
+    # Get unique clusters and use consistent Plotly default colors
     unique_clusters = sorted(info_df['cluster'].unique())
-    colors = px.colors.qualitative.Set2  # Use a qualitative color palette
+    
+    # Use Plotly's default color sequence to match the 3D plots
+    plotly_colors = [
+        '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
+        '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+    ]
 
     # Create figure with individual traces for each cluster
     fig = go.Figure()
 
-    # Add a separate trace for each cluster
+    # Add a separate trace for each cluster in order
     for i, cluster in enumerate(unique_clusters):
         cluster_data = info_df[info_df['cluster'] == cluster]
         
@@ -1010,7 +1053,7 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
             mode='markers',
             marker=dict(
                 size=8,
-                color=colors[i % len(colors)],
+                color=plotly_colors[i % len(plotly_colors)],
                 opacity=0.8
             ),
             text=hover_text,
@@ -1023,17 +1066,10 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
     center_lat = info_df['latitude'].mean()
     center_lon = info_df['longitude'].mean()
 
-
-    # Individual cluster buttons
-    for i, cluster in enumerate(unique_clusters):
-        visible_array = [False] * len(unique_clusters)
-        visible_array[i] = True
-        
-
-    # Update layout with all your original settings plus new interactive features
+    # Update layout with all your original settings plus consistent styling
     fig.update_layout(
         mapbox=dict(
-            style="carto-positron",        # carto-positron        # open-street-map
+            style="open-street-map",
             center=dict(lat=center_lat, lon=center_lon),
             zoom=11
         ),
@@ -1045,8 +1081,7 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
         title={
             'text': f'Customer Clusters - {len(info_df)} customers',
             'x': 0.5,
-            'xanchor': 'center',
-            'font': {'color': 'black', 'size': 20}
+            'xanchor': 'center'
         },
         legend=dict(
             orientation="v",
@@ -1056,13 +1091,13 @@ def plot_clusters_map(info_df, cluster_col='cluster'):
             x=1.02,
             bgcolor="rgba(255,255,255,0.8)",
             bordercolor="rgba(0,0,0,0.2)",
-            borderwidth=1
+            borderwidth=1,
+            traceorder='normal'  # Ensures legend follows the order of traces
         )
     )
 
     # Show the map
     fig.show()
-
 
 
 

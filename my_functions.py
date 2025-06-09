@@ -253,10 +253,50 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
 
 
-def generate_cluster_profiles(info_df_clustered):
+def generate_cluster_profiles(info_df_clustered, top_n_features=10):
+    """
+    Generates and visualizes the difference between cluster means and overall means for each feature.
+    
+    Parameters:
+    - info_df_clustered (DataFrame): DataFrame containing cluster labels.
+    - top_n_features (int): Number of most variant features to show in the heatmap.
+    
+    Returns:
+    - profile_df (DataFrame): Difference between cluster means and overall means.
+    """
+    # Drop non-feature columns
+    feature_df = info_df_clustered.drop(columns=['customer_id'], errors='ignore')
+    
+    # Separate features from cluster labels
+    features_only = feature_df.drop(columns=['cluster'])
+    
+    # Compute overall means for each feature
+    overall_means = features_only.mean()
+    
+    # Compute cluster-wise mean profiles
+    cluster_means = feature_df.groupby('cluster').mean()
+    
+    # Calculate differences from overall mean
+    profile_df = cluster_means.subtract(overall_means, axis=1).round(2)
 
-    # Create a DataFrame to hold the cluster profiles for each cluster
-    return info_df_clustered.drop(columns=['customer_id']).groupby('cluster').mean().round(2)
+    # Find top N most variant features across clusters (based on differences)
+    variances = profile_df.var().sort_values(ascending=False)
+    top_features = variances.head(top_n_features).index
+
+    # Plot heatmap
+    plt.figure(figsize=(1.2 * top_n_features, 6))
+    sns.heatmap(profile_df[top_features], annot=True, fmt=".2f", cmap="RdBu_r", 
+                center=0, linewidths=0.5, cbar_kws={"label": "Difference from Overall Mean"})
+
+    plt.title("Cluster Profiles (Difference from Overall Mean)", fontsize=14, fontweight='bold', pad=15)
+    plt.xlabel("Feature", fontsize=12)
+    plt.ylabel("Cluster", fontsize=12)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+
+    return profile_df
 
 
 
