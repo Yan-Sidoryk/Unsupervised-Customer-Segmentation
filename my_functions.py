@@ -139,7 +139,7 @@ def extra_preprocessing(data, k=5):
 
     # Drop the irrelevant columns
     info_df.drop(columns=['customer_name', 'customer_for', 'customer_gender'], inplace=True) 
-    info_df.drop(columns=['teens_home'], inplace=True)      # , 'kids_home'      
+    info_df.drop(columns=['teens_home', 'kids_home'], inplace=True)      # , 'kids_home'      
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
@@ -173,7 +173,7 @@ def extra_preprocessing(data, k=5):
     # Manually rescale some columns 
     info_df_num_scaled['age'] = info_df_num_scaled['age'] * 3
     info_df_num_scaled['number_complaints'] = info_df_num_scaled['number_complaints'] * 2
-    # info_df_num_scaled['spend_alcohol_drinks_percent'] = info_df_num_scaled['spend_alcohol_drinks_percent'] * 2
+    info_df_num_scaled['spend_vegetables_percent'] = info_df_num_scaled['spend_vegetables_percent'] * 0.5
 
     # Combine all features
     info_df_scaled = pd.concat([info_df_num_scaled, info_df[['customer_id']], info_df_cat_encoded], axis=1)
@@ -234,7 +234,8 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 
 
 def kmeans_clustering(info_df_pca, info_df_scaled, k):
-
+    np.random.seed(42)  # For reproducibility
+    
     # Fit KMeans with your chosen number of clusters
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
     kmeans.fit(info_df_pca.drop(columns=['customer_id']))
