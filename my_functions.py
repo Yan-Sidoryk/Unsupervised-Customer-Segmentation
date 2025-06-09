@@ -139,7 +139,7 @@ def extra_preprocessing(data, k=5):
 
     # Drop the irrelevant columns
     info_df.drop(columns=['customer_name', 'customer_for', 'customer_gender'], inplace=True) 
-    info_df.drop(columns=['teens_home'], inplace=True)      # , 'kids_home'      
+    info_df.drop(columns=['teens_home'], inplace=True)     
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
@@ -173,7 +173,6 @@ def extra_preprocessing(data, k=5):
     # Manually rescale some columns 
     info_df_num_scaled['age'] = info_df_num_scaled['age'] * 3
     info_df_num_scaled['number_complaints'] = info_df_num_scaled['number_complaints'] * 2
-    # info_df_num_scaled['spend_alcohol_drinks_percent'] = info_df_num_scaled['spend_alcohol_drinks_percent'] * 2
 
     # Combine all features
     info_df_scaled = pd.concat([info_df_num_scaled, info_df[['customer_id']], info_df_cat_encoded], axis=1)
@@ -234,6 +233,7 @@ def remove_outliers(info_df_scaled, eps, min_samples):
 
 
 def kmeans_clustering(info_df_pca, info_df_scaled, k):
+    np.random.seed(42)  # For reproducibility
 
     # Fit KMeans with your chosen number of clusters
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
@@ -254,16 +254,7 @@ def kmeans_clustering(info_df_pca, info_df_scaled, k):
 
 
 def generate_cluster_profiles(info_df_clustered, top_n_features=10):
-    """
-    Generates and visualizes the difference between cluster means and overall means for each feature.
-    
-    Parameters:
-    - info_df_clustered (DataFrame): DataFrame containing cluster labels.
-    - top_n_features (int): Number of most variant features to show in the heatmap.
-    
-    Returns:
-    - profile_df (DataFrame): Difference between cluster means and overall means.
-    """
+
     # Drop non-feature columns
     feature_df = info_df_clustered.drop(columns=['customer_id'], errors='ignore')
     
@@ -358,7 +349,6 @@ def get_association_rules(df, min_support):
     te_ary = te.fit_transform(df['list_of_goods'])
     encoded_df = pd.DataFrame(te_ary, columns=te.columns_)
 
-    print(min_support)
 
     # Generate frequent itemsets with minimum support
     frequent_itemsets = apriori(

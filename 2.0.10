@@ -1,8 +1,0 @@
-Collecting ecos
-  Downloading ecos-2.0.14-cp312-cp312-win_amd64.whl.metadata (8.2 kB)
-Requirement already satisfied: numpy>=1.6 in c:\users\yansi\anaconda3\lib\site-packages (from ecos) (1.26.4)
-Requirement already satisfied: scipy>=0.9 in c:\users\yansi\anaconda3\lib\site-packages (from ecos) (1.13.1)
-Downloading ecos-2.0.14-cp312-cp312-win_amd64.whl (72 kB)
-   ---------------------------------------- 0.0/72.2 kB ? eta -:--:--   ---------------------------------------- 72.2/72.2 kB 3.9 MB/s eta 0:00:00
-Installing collected packages: ecos
-Successfully installed ecos-2.0.14
