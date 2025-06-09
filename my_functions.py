@@ -73,7 +73,6 @@ def feature_engineering_info(data, k=5):
 
     # Add total lifetime spend column
     spend_columns = [col for col in data.columns if 'lifetime_spend_' in col]
-
     data['total_lifetime_spend'] = data[spend_columns].sum(axis=1)
 
     # Add columns for percentage of total spend
@@ -91,11 +90,15 @@ def feature_engineering_info(data, k=5):
     data['total_children'] = data['kids_home'] + data['teens_home']   
 
     # Add customer_for column
-    data['customer_for'] = dt.datetime.now().year - data['year_first_transaction']
+    data['customer_for'] = (dt.datetime.now().year - data['year_first_transaction']).clip(0)
     data.drop('year_first_transaction', axis=1, inplace=True)
 
     # Remove the negative values from percentage of products bought on promotion (probably a typing error)
-    data['percentage_of_products_bought_promotion'] = data['percentage_of_products_bought_promotion'].abs().clip(upper=1)
+    data['percentage_of_products_bought_promotion'] = data['percentage_of_products_bought_promotion'].abs() 
+    data.loc[data['percentage_of_products_bought_promotion'] > 1, 'percentage_of_products_bought_promotion'] -= 1
+
+    # Add no_kids column
+    data['no_kids'] = (data['total_children'] == 0).astype(int)
 
     return data
 
@@ -135,24 +138,11 @@ def extra_preprocessing(data, k=5):
     info_df = data.copy()
 
     # Drop the irrelevant columns
-    info_df.drop(columns=['customer_name'], inplace=True)       #, 'customer_gender'
+    info_df.drop(columns=['customer_name', 'customer_for', 'customer_gender'], inplace=True) 
+    info_df.drop(columns=['teens_home'], inplace=True)      # , 'kids_home'      
 
     # Drop the columns that were only kept for visualization
     info_df.drop(columns=['morning_shopper', 'afternoon_shopper', 'evening_shopper', 'degree_level'], inplace=True)
-
-    info_df.drop(columns=['teens_home'], inplace=True)      #'kids_home', 
-    # info_df.drop(columns=['lifetime_spend_groceries',
-    #     'lifetime_spend_electronics', 'lifetime_spend_vegetables',
-    #     'lifetime_spend_nonalcohol_drinks', 'lifetime_spend_alcohol_drinks',
-    #     'lifetime_spend_meat', 'lifetime_spend_fish', 'lifetime_spend_hygiene',
-    #     'lifetime_spend_videogames', 'lifetime_spend_petfood'], inplace=True)
-
-    # Separate spend columns
-    skewed_columns = ['lifetime_total_distinct_products', 'total_lifetime_spend']       #[col for col in info_df.columns if 'spend' in col]
-
-    # Apply the power transformation to the spend columns
-    pt = PowerTransformer(method='yeo-johnson', standardize=True)
-    info_df[skewed_columns] = pt.fit_transform(info_df[skewed_columns])
 
     # Separate categorical columns
     categorical_cols = info_df.select_dtypes(include=['object']).columns.tolist()
@@ -164,8 +154,8 @@ def extra_preprocessing(data, k=5):
         columns=encoder.get_feature_names_out(categorical_cols),
         index=info_df.index)
 
-    # Get the Marko clients
-    marko_clients_id_list = info_df[
+    # Get the Makro clients
+    makro_clients_id_list = info_df[
         (
             (info_df['longitude'] >= -9.214894) & (info_df['longitude'] <= -9.213008) &
             (info_df['latitude'] >= 38.72212) & (info_df['latitude'] <= 38.72405)
@@ -177,23 +167,18 @@ def extra_preprocessing(data, k=5):
     # Separate numerical columns after dropping latitude and longitude
     numerical_cols = info_df.select_dtypes(include=[np.number]).columns.difference(['customer_id']).tolist()
 
-    # Remove spent columns from numerical columns
-    numerical_cols = [col for col in numerical_cols if col not in skewed_columns]
-
     # Scale numerical columns with RobustScaler
     scaler = RobustScaler()
     info_df_num_scaled = pd.DataFrame(scaler.fit_transform(info_df[numerical_cols]), columns=numerical_cols, index=info_df.index)
     # Manually rescale some columns 
-
-    # info_df['lifetime_spend_meat'] = info_df['lifetime_spend_meat'] * 0.3
-    # info_df['lifetime_spend_fish'] = info_df['lifetime_spend_fish'] * 0.5
-    # info_df_num_scaled['spend_meat_percent'] = info_df_num_scaled['spend_meat_percent'] * 0.5
-    info_df_num_scaled['age'] = info_df_num_scaled['age'] * 4
+    info_df_num_scaled['age'] = info_df_num_scaled['age'] * 3
+    info_df_num_scaled['number_complaints'] = info_df_num_scaled['number_complaints'] * 2
+    # info_df_num_scaled['spend_alcohol_drinks_percent'] = info_df_num_scaled['spend_alcohol_drinks_percent'] * 2
 
     # Combine all features
-    info_df_scaled = pd.concat([info_df_num_scaled, info_df[skewed_columns + ['customer_id']], info_df_cat_encoded], axis=1)
+    info_df_scaled = pd.concat([info_df_num_scaled, info_df[['customer_id']], info_df_cat_encoded], axis=1)
 
-    return info_df_scaled[~info_df_scaled['customer_id'].isin(marko_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(marko_clients_id_list)]
+    return info_df_scaled[~info_df_scaled['customer_id'].isin(makro_clients_id_list)], info_df_scaled[info_df_scaled['customer_id'].isin(makro_clients_id_list)]
 
 
 
@@ -210,7 +195,6 @@ def dimensionality_reduction(info_df_scaled, outliers_df, n_comp):
     explained_variance = pca.explained_variance_ratio_
     print(f"Variance explained by each component: {explained_variance}")
     print(f"Total variance explained by {n_comp} components: {sum(explained_variance):.2%}")
-
 
     # Repeat for the outliers DataFrame
     outliers_df_pca = outliers_df[['customer_id']].copy()
@@ -351,14 +335,6 @@ def get_association_rules(df, min_support):
             metric="lift",      
             min_threshold=1.0   
         )
-
-        # Remove duplicate suggestions
-        # rules['sorted_items'] = rules.apply(
-        #     lambda x: tuple(sorted([tuple(x['antecedents']), tuple(x['consequents'])])), 
-        #     axis=1
-        # )
-        # rules = rules.drop_duplicates(subset=['sorted_items'])
-        # rules = rules.drop(columns=['sorted_items'])
 
         # Add a frozenset key of combined items to identify symmetric rules
         rules['pair_key'] = rules.apply(lambda x: frozenset(x['antecedents']).union(x['consequents']), axis=1)

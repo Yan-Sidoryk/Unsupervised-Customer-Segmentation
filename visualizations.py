@@ -121,7 +121,8 @@ def general_visualization(info_df):
     axes[8].set_xlabel('Age', fontsize=10, fontweight='bold')
     axes[8].set_ylabel('Count', fontsize=10, fontweight='bold')
     axes[8].set_title('Distribution of Age', fontsize=11, fontweight='bold', pad=15)
-    axes[8].set_xticklabels(range(21, 86, 5), fontsize=9, fontweight='bold')
+    axes[8].set_xticks(range(21, 86, 5))
+    axes[8].set_xticklabels(axes[8].get_xticklabels(), fontsize=9, fontweight='bold')
     axes[8].grid(True, alpha=0.3, axis='y')
     axes[8].spines['top'].set_visible(False)
     axes[8].spines['right'].set_visible(False)
@@ -167,6 +168,7 @@ def general_visualization(info_df):
     axes[11].set_ylabel('Frequency', fontsize=10, fontweight='bold')
     axes[11].set_title('Distribution of Promotion Purchase Percentage', 
                     fontsize=11, fontweight='bold', pad=15)
+    axes[11].set_xticklabels(axes[11].get_xticklabels(), fontsize=9, fontweight='bold')
     axes[11].grid(True, alpha=0.3, axis='y')
     axes[11].spines['top'].set_visible(False)
     axes[11].spines['right'].set_visible(False)
