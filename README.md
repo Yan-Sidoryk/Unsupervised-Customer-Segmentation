@@ -10,7 +10,7 @@ For a data scientist, mastering unsupervised learning algorithms is essential be
 
 ## The Data
 
-For this assignment, you will be provided with two datasets containing information on customer demographics, spending habits, purchasing behavior, and historical transactions. Your task is to perform customer segmentation and identify distinct groups of customers based on their shared characteristics. The two datasets are named:
+For this assignment, there are two datasets containing information on customer demographics, spending habits, purchasing behavior, and historical transactions. The task is to perform customer segmentation and identify distinct groups of customers based on their shared characteristics. The two datasets are named:
 
 - `customer_info.csv`
 - `customer_basket.csv`
@@ -54,62 +54,16 @@ Contains information about customers' different baskets purchased at the shop. E
 - `list_of_goods`: Products bought in list format.
 - `customer_id`: Identifier of the customer (used to connect with `customer_info.csv`).
 
-Additionally, you can access `product_mapping.xlsx`, an Excel file that contains a mapping between the product name and its category.
-
 ## The Project
 
-In this project, you will be asked to:
+In this project, the main objectives are:
 
 1. **Identify relevant customer segments**: Use statistical and machine learning techniques to identify meaningful segments within the customer base.
 2. **Analyze customer behavior**: Gain insights into motivations, preferences, and needs by analyzing purchasing patterns, loyalty card usage, and complaint history.
 3. **Develop targeted marketing strategies**: Use the `customer_basket.csv` dataset to develop personalized promotions, targeted ads, and tailored product offerings.
 
-## Deliverables
+## Results
+We performed customer segmentation using clustering techniques on retail transaction data. The clustering process yielded meaningful and well-defined segments with good evaluation scores. To deepen our understanding of each segment, we applied association rules within each cluster. This allowed us to uncover product pairings and preferences specific to each group.
 
-- A GitHub repository with code and an explanation of the solution.
-- Clean, well-structured, and modular code (extra points for well-organized `.py` files instead of notebook-heavy code).
-- An **executive report** detailing each segment and suggested marketing campaigns.
-- A **CSV file** mapping each `customer_id` to its proposed cluster.
+Final project grade - 17/20
 
-**Submission Details:**
-- Invite GitHub user `ivopbernardo` to your repo.
-- The last commit before **June 9th at 23:59:59** will be considered.
-- Late submissions will incur penalties unless an exception is requested via `ibernardo@novaims.unl.pt`.
-
-## Report Structure
-
-### 1) Executive Summary
-- Overview of the problem addressed
-- Summary of methodology and key findings
-
-### 2) Exploratory Data Analysis and Pre-Processing
-- Description of data sources
-- Summary of cleaning and preprocessing
-- Data visualizations and insights
-
-### 3) Customer Segmentation and Clustering
-- Description of the segmentation approach
-- Summary of customer segments and their characteristics
-- Comparison of segments
-
-### 4) Targeted Promotion
-- Suggested campaigns for each segment
-- Promotion mechanics (e.g., buy one-get one free, discounts, bundle deals)
-
-### 5) Conclusions and Recommendations
-- Summary of findings
-- Key takeaways and recommendations
-
-## Evaluation Criteria
-
-Your project will be evaluated based on:
-
-- **Technical quality of the segmentation** (5 Points)
-- **Git usage** (3 Points)
-- **Quality of the report** (4 Points)
-- **Visuals and explanation** (3 Points)
-- **Interpretation of the clusters** (2 Points)
-- **Feasibility of promotions vs. cluster interpretation** (3 Points)
-- **Extra: Code quality** (+2 Points)
-
-_Note: No code should be included in the report; all code should be in the Jupyter Notebook(s) or Python files._
